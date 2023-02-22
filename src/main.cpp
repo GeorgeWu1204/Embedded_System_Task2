@@ -1,5 +1,6 @@
 #include <Arduino.h>
 #include <U8g2lib.h>
+#include <STM32FreeRTOS.h>
 
 // Constants
 const uint32_t interval = 100; // Display update interval
@@ -51,7 +52,10 @@ const int32_t stepSizes[12] = {
     91007186,
     96418755};
 
+const char *Key_set[13] = {"Not Pressed", "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
+
 volatile int32_t currentStepSize;
+volatile uint8_t keyArray[7];
 
 // Function to set outputs using key matrix
 void setOutMuxBit(const uint8_t bitIdx, const bool value)
@@ -66,14 +70,8 @@ void setOutMuxBit(const uint8_t bitIdx, const bool value)
   digitalWrite(REN_PIN, LOW);
 }
 
-
-
 uint8_t readCols()
 {
-  // digitalWrite(RA0_PIN, LOW);
-  // digitalWrite(RA1_PIN, LOW);
-  // digitalWrite(RA2_PIN, LOW);
-  // digitalWrite(REN_PIN, HIGH);
   uint8_t Key_C = digitalRead(C0_PIN);
   uint8_t Key_CS = digitalRead(C1_PIN);
   uint8_t Key_D = digitalRead(C2_PIN);
@@ -91,11 +89,74 @@ void setRow(uint8_t rowIdx)
   digitalWrite(REN_PIN, HIGH);
 }
 
-void sampleISR() {
+void sampleISR()
+{
   static int32_t phaseAcc = 0;
   phaseAcc += currentStepSize;
   int32_t Vout = phaseAcc >> 24;
   analogWrite(OUTR_PIN, Vout + 128);
+}
+
+void scanKeysTask(void *pvParameters)
+{
+  const TickType_t xFrequency = 50 / portTICK_PERIOD_MS;
+  // xFrequency initiation interval of task set to 50ms
+  TickType_t xLastWakeTime = xTaskGetTickCount();
+  // xLastWakeTime will store the time (tick count) of the last initiation.
+  uint32_t localCurrentStepSize;
+  while (1)
+  {
+    vTaskDelayUntil(&xLastWakeTime, xFrequency);
+    // vTaskDelayUntil blocks execution of the thread until xFrequency ticks have happened since the last execution of the loop.
+    for (uint8_t i = 0; i < 3; i++)
+    {
+      setRow(i);
+      delayMicroseconds(3);
+      keyArray[i] = readCols();
+    }
+    uint32_t keys = keyArray[2] << 8 | keyArray[1] << 4 | keyArray[0];
+    localCurrentStepSize = 0;
+    for (int g = 0; g < 12; g++)
+    {
+      if (((keys >> g) & 1) == 0)
+      {
+        localCurrentStepSize = stepSizes[g];
+      }
+    }
+    currentStepSize = localCurrentStepSize;
+    __atomic_store_n(&currentStepSize, localCurrentStepSize, __ATOMIC_RELAXED);
+  }
+}
+
+void displayUpdateTask(void *pvParameters)
+{
+  const TickType_t xFrequency = 100 / portTICK_PERIOD_MS;
+  TickType_t xLastWakeTime = xTaskGetTickCount();
+  uint32_t output;
+  uint8_t key_index;
+  const char *output_key;
+  // Update display
+  while (1)
+  {
+    vTaskDelayUntil(&xLastWakeTime, xFrequency);
+    u8g2.clearBuffer();                 // clear the internal memory
+    u8g2.setFont(u8g2_font_ncenB08_tr); // choose a suitable font
+    output = keyArray[2] << 8 | keyArray[1] << 4 | keyArray[0];
+    key_index = 0;
+    for (int g = 0; g < 12; g++){
+      if (((output >> g) & 1) == 0)
+      {
+        key_index = g + 1;
+      }
+    }
+    u8g2.setCursor(2, 10);
+    u8g2.print(output, HEX);
+    u8g2.setCursor(2, 20);
+    u8g2.print(Key_set[key_index]);
+    u8g2.sendBuffer(); // transfer internal memory to the display
+    // Toggle LED
+    digitalToggle(LED_BUILTIN);
+  }
 }
 
 void setup()
@@ -136,54 +197,31 @@ void setup()
   sampleTimer->setOverflow(22000, HERTZ_FORMAT);
   sampleTimer->attachInterrupt(sampleISR);
   sampleTimer->resume();
+
+  // Initialize threading scanKeysTask
+  TaskHandle_t scanKeysHandle = NULL;
+  xTaskCreate(
+      scanKeysTask,     /* Function that implements the task */
+      "scanKeys",       /* Text name for the task */
+      64,               /* Stack size in words, not bytes */
+      NULL,             /* Parameter passed into the task */
+      2,                /* Task priority */
+      &scanKeysHandle); /* Pointer to store the task handle */
+
+  // Initialize threading displayUpdateTask
+  TaskHandle_t displayHandle = NULL;
+  xTaskCreate(
+      displayUpdateTask, /* Function that implements the task */
+      "display",         /* Text name for the task */
+      256,               /* Stack size in words, not bytes */
+      NULL,              /* Parameter passed into the task */
+      1,                 /* Task priority */
+      &displayHandle);   /* Pointer to store the task handle */
+
+  // Start RTOS scheduler
+  vTaskStartScheduler();
 }
 
 void loop()
 {
-  // put your main code here, to run repeatedly:
-  static uint32_t next = millis();
-  static uint32_t count = 0;
-
-  uint8_t keyArray[7];
-
-
-  if (millis() > next)
-  {
-    next += interval;
-
-    // Update display
-    u8g2.clearBuffer();                 // clear the internal memory
-    u8g2.setFont(u8g2_font_ncenB08_tr); // choose a suitable font
-    // u8g2.drawStr(2, 10, "Helllo World!"); // write something to the internal memory
-    // u8g2.setCursor(2,20);
-    // u8g2.print(count++);
-    for (uint8_t i = 0; i < 3; i++)
-    {
-      setRow(i);
-      delayMicroseconds(3);
-      keyArray[i] = readCols();
-    }
-    // Serial.println(keyArray[0]);
-
-    uint32_t keys = keyArray[2] << 8 | keyArray[1] << 4 | keyArray[0];
-    currentStepSize = 0;
-    for (int g = 0; g < 12; g++)
-    {
-      if (((keys >> g) & 1) == 0)
-      {
-        currentStepSize = stepSizes[g];
-        Serial.println(currentStepSize);
-      }
-    }
-
-    // uint8_t keys = readCols();
-    u8g2.setCursor(2, 20);
-    u8g2.print(keys, HEX);
-    u8g2.setCursor(40, 20);
-    u8g2.print(currentStepSize, HEX);
-    u8g2.sendBuffer(); // transfer internal memory to the display
-
-    // Toggle LED
-    digitalToggle(LED_BUILTIN);
-  }
 }
