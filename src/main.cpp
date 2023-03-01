@@ -117,21 +117,25 @@ void sampleISR()
 
 void checkKeyChange(uint8_t previous_array [], uint8_t current_array []){
   uint32_t current_keys = current_array[2] << 8 | current_array[1] << 4 | current_array[0];
-  uint32_t previous_keys = current_array[2] << 8 | current_array[1] << 4 | current_array[0];
+  uint32_t previous_keys = previous_array[2] << 8 | previous_array[1] << 4 | previous_array[0];
   uint32_t xor_keys = current_keys ^ previous_keys;
-  uint8_t index = -1;
+
+  int8_t index = -1;
   for (int i = 0; i < 32; i++){
-    if((xor_keys>>i) == 1){
+    if(((xor_keys>>i) & 1 )== 1){
       index = i;
+      Serial.print("index_update");
+      Serial.println(index);
       break;
     }
   }
   if (index != -1){
-    if (current_array[index] == 0){
+    if (((current_keys >> index) & 1) == 0){
       // pressed
       TX_Message[0] = 'P';
       TX_Message[1] = octave;
       TX_Message[2] = index;
+      
     
     }
     else{
@@ -141,6 +145,7 @@ void checkKeyChange(uint8_t previous_array [], uint8_t current_array []){
       TX_Message[2] = index;
     }
   } 
+
 }
 
 
@@ -170,7 +175,7 @@ void scanKeysTask(void *pvParameters)
     xSemaphoreGive(keyArrayMutex);
     
     checkKeyChange(previouslocalkeyArray, localkeyArray);
-    // CAN_TX(0x123, TX_Message); // send the message over the bus using the CAN library
+    CAN_TX(0x123, TX_Message); // send the message over the bus using the CAN library
     
 
     uint32_t keys = localkeyArray[2] << 8 | localkeyArray[1] << 4 | localkeyArray[0];
@@ -188,8 +193,6 @@ void scanKeysTask(void *pvParameters)
     knob3Rotation = knob3.getRotationValue();
     
     std::copy(localkeyArray, localkeyArray + 7, previouslocalkeyArray); 
-
-    Serial.println(knob3Rotation);
   }
 }
  
@@ -233,12 +236,22 @@ void displayUpdateTask(void *pvParameters)
     // u8g2.print((char) TX_Message[0]);
     // u8g2.print(TX_Message[1]);
     // u8g2.print(TX_Message[2]);
-    u8g2.setCursor(66,30);
+    u8g2.setCursor(2,30);
     u8g2.print((char) TX_Message[0]);
     u8g2.print(TX_Message[1]);
     u8g2.print(TX_Message[2]);
+    u8g2.sendBuffer();
   }
 }
+
+// void decodeTask(void *pvParameters)
+// {
+//   while (1)
+//   {
+//     xQueueReceive(msgInQ, RX_Message, portMAX_DELAY);
+//   }
+
+
 
 // Incoming messages will be written into the queue in an ISR
 void CAN_RX_ISR (void) {
@@ -317,6 +330,16 @@ void setup()
       NULL,              /* Parameter passed into the task */
       1,                 /* Task priority */
       &displayHandle);   /* Pointer to store the task handle */
+
+  // // Initialize threading decodeTask
+  // TaskHandle_t decodeHandle = NULL;
+  // xTaskCreate(
+  //     decodeTask, /* Function that implements the task */
+  //     "decode",         /* Text name for the task */
+  //     256,               /* Stack size in words, not bytes */
+  //     NULL,              /* Parameter passed into the task */
+  //     3,                 /* Task priority */
+  //     &decodeHandle);   /* Pointer to store the task handle */
 
   // Start RTOS scheduler
   vTaskStartScheduler();
