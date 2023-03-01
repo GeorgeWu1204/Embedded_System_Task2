@@ -1,13 +1,14 @@
-#include <Arduino.h>
-#include <U8g2lib.h>
-#include <STM32FreeRTOS.h>
-#include <iostream>
-#include <string>
+// #include <algorithm>
+// #include <Arduino.h>
+// #include <U8g2lib.h>
+// #include <STM32FreeRTOS.h>
+// #include <iostream>
+// #include <string>
+
 #include "knob.cpp"
 #include "sin.cpp"
-#include <algorithm>
-// #include <ES_CAN.h>
 #include "communication.cpp"
+#include "global_variables.h"
 
 // Constants
 
@@ -46,35 +47,40 @@ U8G2_SSD1305_128X32_NONAME_F_HW_I2C u8g2(U8G2_R0);
 
 // note freq
 
-const int32_t stepSizes[12] = {
-    51076056,
-    54113197,
-    57330935,
-    60740009,
-    64351798,
-    68178356,
-    72232452,
-    76527617,
-    81078186,
-    85899345,
-    91007186,
-    96418755};
+// const int32_t stepSizes[12] = {
+//     51076056,
+//     54113197,
+//     57330935,
+//     60740009,
+//     64351798,
+//     68178356,
+//     72232452,
+//     76527617,
+//     81078186,
+//     85899345,
+//     91007186,
+//     96418755};
 
-const char *Key_set[13] = {"Not Pressed", "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
-const uint8_t octave = 4;
+// const char * Key_set[13] = {"Not Pressed", "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
 
-volatile int32_t currentStepSize;
-volatile int32_t currentIndex;
-volatile int8_t knob3Rotation;
-volatile uint8_t keyArray[7];
-volatile uint8_t globalTX_Message[8]={0};
-volatile uint8_t globalRX_Message[8]={0};
+// const uint8_t octave = 4;
+
+// volatile int32_t currentStepSize;
+// volatile int32_t currentIndex;
+// volatile int8_t knob3Rotation;
+// volatile uint8_t keyArray[7];
+
+// volatile uint8_t globalTX_Message[8]={0};
+// volatile uint8_t globalRX_Message[8]={0};
+
+
+
 SemaphoreHandle_t keyArrayMutex;
 Knob knob1;
 Knob knob2;
 Knob knob3;
 Communication communication(0x123);
-CentralOctaveLookUpTable centralOctaveLookUpTable;
+//CentralOctaveLookUpTable centralOctaveLookUpTable;
 
 
 // Function to set outputs using key matrix
@@ -120,40 +126,7 @@ void sampleISR()
   Vout = Vout >> (8 - knob3Rotation);
   analogWrite(OUTR_PIN, Vout + 128);
 }
-
-
-// void checkKeyChange(uint8_t previous_array [], uint8_t current_array []){
-//   uint8_t TX_Message[8] = {0};
-//   uint32_t current_keys = current_array[2] << 8 | current_array[1] << 4 | current_array[0];
-//   uint32_t previous_keys = previous_array[2] << 8 | previous_array[1] << 4 | previous_array[0];
-//   uint32_t xor_keys = current_keys ^ previous_keys;
-//   int8_t index = -1;
-//   for (int i = 0; i < 32; i++){
-//     if(((xor_keys>>i) & 1 )== 1){
-//       index = i;
-//       Serial.print("index_update");
-//       Serial.println(index);
-//       break;
-//     }
-//   }
-//   if (index != -1){
-//     if (((current_keys >> index) & 1) == 0){
-//       // pressed
-//       TX_Message[0] = 'P';
-//       TX_Message[1] = octave;
-//       TX_Message[2] = index;
-//     }
-//     else{
-//       // released
-//       TX_Message[0] = 'R';
-//       TX_Message[1] = octave;
-//       TX_Message[2] = index;
-//     }
-//     CAN_TX(0x123, TX_Message);
-//     std::copy(TX_Message, TX_Message + 8, globalTX_Message); 
-//   } 
-//}
-
+    
 
 void scanKeysTask(void *pvParameters)
 {
@@ -236,8 +209,7 @@ void displayUpdateTask(void *pvParameters)
     }
 
     // receive message
-	  communication.receiveMessage();
-    std::copy(communication.getRXMessageValue(), communication.getRXMessageValue() + 8, globalRX_Message);  
+    // std::copy(communication.getRXMessageValue(), communication.getRXMessageValue() + 8, globalRX_Message);  
     
     // u8g2.setCursor(2, 10);
     // u8g2.print(output, HEX);
@@ -266,35 +238,9 @@ void displayUpdateTask(void *pvParameters)
   }
 }
 
-// void decodeTask(void *pvParameters){
-//   while (1)
-//   {
-//     xQueueReceive(msgInQ, RX_Message, portMAX_DELAY);
-//     uint8_t press_release = RX_Message[0];
-//     uint8_t octave_number = RX_Message[1];
-//     uint8_t note_number = RX_Message[2];
-//     uint8_t stepSize;
-//     if (press_release == 'P'){
-//       // convert the note number to a step size
-//       stepSize = stepSizes[note_number];
-//       stepSize = stepSize << (octave_number-4);
-//     }
-//     else if(press_release == 'R'){
-//       stepSize = 0;
-//     }
-//     __atomic_store_n(&currentStepSize, stepSize, __ATOMIC_RELAXED);
-//   }
-// }
 
 
 
-// Incoming messages will be written into the queue in an ISR
-// void CAN_RX_ISR (void) {
-// 	uint8_t RX_Message_ISR[8];
-// 	uint32_t ID;
-// 	CAN_RX(ID, RX_Message_ISR); // gets the message data
-// 	xQueueSendFromISR(msgInQ, RX_Message_ISR, NULL); // places the data in the queue
-// }
 
 void setup()
 {
@@ -342,7 +288,7 @@ void setup()
   communication.Initialize_CAN();
 
   
-  centralOctaveLookUpTable.initializeTable();
+  //centralOctaveLookUpTable.initializeTable();
   
   // Initialize threading scanKeysTask
   TaskHandle_t scanKeysHandle = NULL;

@@ -3,6 +3,7 @@
 #include <STM32FreeRTOS.h>
 #include <iostream>
 #include <string>
+#include "global_variables.h"
 
 
 class Knob { 
