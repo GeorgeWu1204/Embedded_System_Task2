@@ -3,11 +3,14 @@
 #include <STM32FreeRTOS.h>
 #include <iostream>
 #include <string>
-#include "Knob.cpp"
+#include "knob.cpp"
+#include "sin.cpp"
 #include <algorithm>
-#include <ES_CAN.h>
+// #include <ES_CAN.h>
+#include "communication.cpp"
 
 // Constants
+
 const uint32_t interval = 100; // Display update interval
 
 // Pin definitions
@@ -61,16 +64,17 @@ const char *Key_set[13] = {"Not Pressed", "C", "C#", "D", "D#", "E", "F", "F#", 
 const uint8_t octave = 4;
 
 volatile int32_t currentStepSize;
+volatile int32_t currentIndex;
 volatile int8_t knob3Rotation;
 volatile uint8_t keyArray[7];
+volatile uint8_t globalTX_Message[8]={0};
+volatile uint8_t globalRX_Message[8]={0};
 SemaphoreHandle_t keyArrayMutex;
 Knob knob1;
 Knob knob2;
 Knob knob3;
-
-//CAN
-volatile uint8_t TX_Message[8] = {0};
-QueueHandle_t msgInQ;
+Communication communication(0x123);
+CentralOctaveLookUpTable centralOctaveLookUpTable;
 
 
 // Function to set outputs using key matrix
@@ -108,45 +112,47 @@ void setRow(uint8_t rowIdx)
 void sampleISR()
 {
   static int32_t phaseAcc = 0;
+  static int32_t sampleNumber = 0;
   phaseAcc += currentStepSize;
+  sampleNumber += 1;
   int32_t Vout = (phaseAcc >> 24) -128;
+  // int32_t Vout = (centralOctaveLookUpTable.accessTable(currentIndex,sampleNumber)>> 24) - 128;
   Vout = Vout >> (8 - knob3Rotation);
   analogWrite(OUTR_PIN, Vout + 128);
 }
 
 
-void checkKeyChange(uint8_t previous_array [], uint8_t current_array []){
-  uint32_t current_keys = current_array[2] << 8 | current_array[1] << 4 | current_array[0];
-  uint32_t previous_keys = previous_array[2] << 8 | previous_array[1] << 4 | previous_array[0];
-  uint32_t xor_keys = current_keys ^ previous_keys;
-
-  int8_t index = -1;
-  for (int i = 0; i < 32; i++){
-    if(((xor_keys>>i) & 1 )== 1){
-      index = i;
-      Serial.print("index_update");
-      Serial.println(index);
-      break;
-    }
-  }
-  if (index != -1){
-    if (((current_keys >> index) & 1) == 0){
-      // pressed
-      TX_Message[0] = 'P';
-      TX_Message[1] = octave;
-      TX_Message[2] = index;
-      
-    
-    }
-    else{
-      // released
-      TX_Message[0] = 'R';
-      TX_Message[1] = octave;
-      TX_Message[2] = index;
-    }
-  } 
-
-}
+// void checkKeyChange(uint8_t previous_array [], uint8_t current_array []){
+//   uint8_t TX_Message[8] = {0};
+//   uint32_t current_keys = current_array[2] << 8 | current_array[1] << 4 | current_array[0];
+//   uint32_t previous_keys = previous_array[2] << 8 | previous_array[1] << 4 | previous_array[0];
+//   uint32_t xor_keys = current_keys ^ previous_keys;
+//   int8_t index = -1;
+//   for (int i = 0; i < 32; i++){
+//     if(((xor_keys>>i) & 1 )== 1){
+//       index = i;
+//       Serial.print("index_update");
+//       Serial.println(index);
+//       break;
+//     }
+//   }
+//   if (index != -1){
+//     if (((current_keys >> index) & 1) == 0){
+//       // pressed
+//       TX_Message[0] = 'P';
+//       TX_Message[1] = octave;
+//       TX_Message[2] = index;
+//     }
+//     else{
+//       // released
+//       TX_Message[0] = 'R';
+//       TX_Message[1] = octave;
+//       TX_Message[2] = index;
+//     }
+//     CAN_TX(0x123, TX_Message);
+//     std::copy(TX_Message, TX_Message + 8, globalTX_Message); 
+//   } 
+//}
 
 
 void scanKeysTask(void *pvParameters)
@@ -173,25 +179,32 @@ void scanKeysTask(void *pvParameters)
     xSemaphoreTake(keyArrayMutex, portMAX_DELAY);
     std::copy(localkeyArray,localkeyArray+7,keyArray);
     xSemaphoreGive(keyArrayMutex);
-    
-    checkKeyChange(previouslocalkeyArray, localkeyArray);
-    CAN_TX(0x123, TX_Message); // send the message over the bus using the CAN library
-    
 
+    // send message if any key changed
+    communication.sendMessage(previouslocalkeyArray, localkeyArray);
+    std::copy(communication.getTXMessageValue(), communication.getTXMessageValue() + 8, globalTX_Message); 
+ 
+    // for sound output
     uint32_t keys = localkeyArray[2] << 8 | localkeyArray[1] << 4 | localkeyArray[0];
     localCurrentStepSize = 0;
+    uint8_t currentIndex = 0;
     for (int g = 0; g < 12; g++)
     {
       if (((keys >> g) & 1) == 0)
       {
         localCurrentStepSize = stepSizes[g];
+        currentIndex = g;
+        // Serial.print("GGGGGGGG");
+        // Serial.print(centralOctaveLookUpTable.accessTable(currentIndex, 100));
       }
     }
     __atomic_store_n(&currentStepSize, localCurrentStepSize, __ATOMIC_RELAXED);
+    __atomic_store_n(&currentIndex, currentIndex, __ATOMIC_RELAXED); // This is 
+
+    // detect knob rotation
     knob3_current_val = localkeyArray[3] & 3 ;
     knob3.updateRotationValue(knob3_current_val);
     knob3Rotation = knob3.getRotationValue();
-    
     std::copy(localkeyArray, localkeyArray + 7, previouslocalkeyArray); 
   }
 }
@@ -214,15 +227,18 @@ void displayUpdateTask(void *pvParameters)
     std::copy(keyArray,keyArray+7,localkeyArray);
     xSemaphoreGive(keyArrayMutex);
     output = localkeyArray[2] << 8 | localkeyArray[1] << 4 | localkeyArray[0];
-    
     key_index = 0;
-    
     for (int g = 0; g < 12; g++){
       if (((output >> g) & 1) == 0)
       {
         key_index = g + 1;
       }
     }
+
+    // receive message
+	  communication.receiveMessage();
+    std::copy(communication.getRXMessageValue(), communication.getRXMessageValue() + 8, globalRX_Message);  
+    
     // u8g2.setCursor(2, 10);
     // u8g2.print(output, HEX);
     // u8g2.setCursor(2, 20);
@@ -237,29 +253,48 @@ void displayUpdateTask(void *pvParameters)
     // u8g2.print(TX_Message[1]);
     // u8g2.print(TX_Message[2]);
     u8g2.setCursor(2,30);
-    u8g2.print((char) TX_Message[0]);
-    u8g2.print(TX_Message[1]);
-    u8g2.print(TX_Message[2]);
+    u8g2.print((char) globalTX_Message[0]);
+    u8g2.print(globalTX_Message[1]);
+    u8g2.print(globalTX_Message[2]);
+    u8g2.sendBuffer();
+
+    u8g2.setCursor(60,30);
+    u8g2.print((char) globalRX_Message[0]);
+    u8g2.print(globalRX_Message[1]);
+    u8g2.print(globalRX_Message[2]);
     u8g2.sendBuffer();
   }
 }
 
-// void decodeTask(void *pvParameters)
-// {
+// void decodeTask(void *pvParameters){
 //   while (1)
 //   {
 //     xQueueReceive(msgInQ, RX_Message, portMAX_DELAY);
+//     uint8_t press_release = RX_Message[0];
+//     uint8_t octave_number = RX_Message[1];
+//     uint8_t note_number = RX_Message[2];
+//     uint8_t stepSize;
+//     if (press_release == 'P'){
+//       // convert the note number to a step size
+//       stepSize = stepSizes[note_number];
+//       stepSize = stepSize << (octave_number-4);
+//     }
+//     else if(press_release == 'R'){
+//       stepSize = 0;
+//     }
+//     __atomic_store_n(&currentStepSize, stepSize, __ATOMIC_RELAXED);
 //   }
+// }
 
 
 
 // Incoming messages will be written into the queue in an ISR
-void CAN_RX_ISR (void) {
-	uint8_t RX_Message_ISR[8];
-	uint32_t ID;
-	CAN_RX(ID, RX_Message_ISR); // gets the message data
-	xQueueSendFromISR(msgInQ, RX_Message_ISR, NULL); // places the data in the queue
-}
+// void CAN_RX_ISR (void) {
+// 	uint8_t RX_Message_ISR[8];
+// 	uint32_t ID;
+// 	CAN_RX(ID, RX_Message_ISR); // gets the message data
+// 	xQueueSendFromISR(msgInQ, RX_Message_ISR, NULL); // places the data in the queue
+// }
 
 void setup()
 {
@@ -302,14 +337,12 @@ void setup()
   sampleTimer->setOverflow(22000, HERTZ_FORMAT);
   sampleTimer->attachInterrupt(sampleISR);
   sampleTimer->resume();
+  
+  // initialise communication
+  communication.Initialize_CAN();
 
-  // initialise CAN bus
-  CAN_Init(true); // loopback mode - receive and acknowledge its own messages
-  setCANFilter(0x123,0x7ff); // only messages with the ID 0x123 will be received
-  CAN_Start();
-
-  msgInQ = xQueueCreate(36,8); // (number of params, size of each in bytes)
-
+  
+  centralOctaveLookUpTable.initializeTable();
   
   // Initialize threading scanKeysTask
   TaskHandle_t scanKeysHandle = NULL;
