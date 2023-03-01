@@ -1,4 +1,12 @@
-#include "global_variables.h"
+// #include "global_variables.h"
+#include <algorithm>
+#include <Arduino.h>
+#include <U8g2lib.h>
+#include <STM32FreeRTOS.h>
+#include <iostream>
+#include <string>
+#include <ES_CAN.h>
+#include <functional>
 
 QueueHandle_t msgInQ;
 
