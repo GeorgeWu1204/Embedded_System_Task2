@@ -1,85 +1,19 @@
-#include <algorithm>
-#include <Arduino.h>
-#include <U8g2lib.h>
-#include <STM32FreeRTOS.h>
-#include <iostream>
-#include <string>
 #include "knob.cpp"
-// #include "sin.cpp"
-#include "communication.cpp"
-// #include "global_variables.h"
+#include "sineLookUpTable.cpp"
+#include "communication.h"
+#include "global_variables.h"
 
-// Constants
-
-const uint32_t interval = 100; // Display update interval
-
-// Pin definitions
-// Row select and enable
-const int RA0_PIN = D3;
-const int RA1_PIN = D6;
-const int RA2_PIN = D12;
-const int REN_PIN = A5;
-
-// Matrix input and output
-const int C0_PIN = A2;
-const int C1_PIN = D9;
-const int C2_PIN = A6;
-const int C3_PIN = D1;
-const int OUT_PIN = D11;
-
-// Audio analogue out
-const int OUTL_PIN = A4;
-const int OUTR_PIN = A3;
-
-// Joystick analogue in
-const int JOYY_PIN = A0;
-const int JOYX_PIN = A1;
-
-// Output multiplexer bits
-const int DEN_BIT = 3;
-const int DRST_BIT = 4;
-const int HKOW_BIT = 5;
-const int HKOE_BIT = 6;
 
 // Display driver object
 U8G2_SSD1305_128X32_NONAME_F_HW_I2C u8g2(U8G2_R0);
 
-// note freq
-
-const int32_t stepSizes[12] = {
-    51076056,
-    54113197,
-    57330935,
-    60740009,
-    64351798,
-    68178356,
-    72232452,
-    76527617,
-    81078186,
-    85899345,
-    91007186,
-    96418755};
-
-const char * Key_set[13] = {"Not Pressed", "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
-
-const uint8_t octave = 4;
-
-volatile int32_t currentStepSize;
-volatile int32_t currentIndex;
-volatile int8_t knob3Rotation;
-volatile uint8_t keyArray[7];
-
-volatile uint8_t globalTX_Message[8]={0};
-volatile uint8_t globalRX_Message[8]={0};
-
-
-
 SemaphoreHandle_t keyArrayMutex;
-// Knob knob1;
-// Knob knob2;
+
+// // Knob knob1;
+// // Knob knob2;
 Knob knob3;
-Communication communication(0x123);
-//CentralOctaveLookUpTable centralOctaveLookUpTable;
+CentralOctaveLookUpTable centralOctaveLookUpTable;
+
 
 
 // Function to set outputs using key matrix
@@ -116,16 +50,20 @@ void setRow(uint8_t rowIdx)
 
 void sampleISR()
 {
-  static int32_t phaseAcc = 0;
+  //static int32_t phaseAcc = 0;
   static int32_t sampleNumber = 0;
-  phaseAcc += currentStepSize;
+  //phaseAcc += currentStepSize;
   sampleNumber += 1;
-  int32_t Vout = (phaseAcc >> 24) -128;
-  // int32_t Vout = (centralOctaveLookUpTable.accessTable(currentIndex,sampleNumber)>> 24) - 128;
+  if(sampleNumber>tableSizes[currentKey]){
+    sampleNumber = 0;
+  };
+  int32_t Vout = centralOctaveLookUpTable.accessTable(currentKey,sampleNumber);
+  // int32_t Vout = (phaseAcc >> 24) -128;
   Vout = Vout >> (8 - knob3Rotation);
   analogWrite(OUTR_PIN, Vout + 128);
 }
     
+
 
 void scanKeysTask(void *pvParameters)
 {
@@ -153,25 +91,23 @@ void scanKeysTask(void *pvParameters)
     xSemaphoreGive(keyArrayMutex);
 
     // send message if any key changed
-    communication.sendMessage(previouslocalkeyArray, localkeyArray);
-    std::copy(communication.getTXMessageValue(), communication.getTXMessageValue() + 8, globalTX_Message); 
+    sendMessage(previouslocalkeyArray, localkeyArray);
+    
  
     // for sound output
     uint32_t keys = localkeyArray[2] << 8 | localkeyArray[1] << 4 | localkeyArray[0];
-    localCurrentStepSize = 0;
-    uint8_t currentIndex = 0;
+    // localCurrentStepSize = 0;
+    uint8_t currentIndex = -1;
     for (int g = 0; g < 12; g++)
     {
       if (((keys >> g) & 1) == 0)
       {
-        localCurrentStepSize = stepSizes[g];
+        //localCurrentStepSize = stepSizes[g];
         currentIndex = g;
-        // Serial.print("GGGGGGGG");
-        // Serial.print(centralOctaveLookUpTable.accessTable(currentIndex, 100));
       }
     }
-    __atomic_store_n(&currentStepSize, localCurrentStepSize, __ATOMIC_RELAXED);
-    __atomic_store_n(&currentIndex, currentIndex, __ATOMIC_RELAXED); // This is 
+    //__atomic_store_n(&currentStepSize, localCurrentStepSize, __ATOMIC_RELAXED);
+    __atomic_store_n(&currentKey, currentIndex, __ATOMIC_RELAXED); 
 
     // detect knob rotation
     knob3_current_val = localkeyArray[3] & 3 ;
@@ -206,23 +142,7 @@ void displayUpdateTask(void *pvParameters)
         key_index = g + 1;
       }
     }
-
-    // receive message
-    // std::copy(communication.getRXMessageValue(), communication.getRXMessageValue() + 8, globalRX_Message);  
-    
-    // u8g2.setCursor(2, 10);
-    // u8g2.print(output, HEX);
-    // u8g2.setCursor(2, 20);
-    // u8g2.print(Key_set[key_index]);
-    // u8g2.sendBuffer(); // transfer internal memory to the display
-    // // Toggle LED
-    // digitalToggle(LED_BUILTIN);
-
-    // // Display the latest transmit message
-    // u8g2.setCursor(66,30);
-    // u8g2.print((char) TX_Message[0]);
-    // u8g2.print(TX_Message[1]);
-    // u8g2.print(TX_Message[2]);
+   
     u8g2.setCursor(2,30);
     u8g2.print((char) globalTX_Message[0]);
     u8g2.print(globalTX_Message[1]);
@@ -236,9 +156,6 @@ void displayUpdateTask(void *pvParameters)
     u8g2.sendBuffer();
   }
 }
-
-
-
 
 
 void setup()
@@ -275,7 +192,8 @@ void setup()
 
   // Initialise mutex
   keyArrayMutex = xSemaphoreCreateMutex();
-
+  RX_MessageMutex = xSemaphoreCreateMutex();
+  
   // Initialise SampleISR
   TIM_TypeDef *Instance = TIM1;
   HardwareTimer *sampleTimer = new HardwareTimer(Instance);
@@ -283,10 +201,10 @@ void setup()
   sampleTimer->attachInterrupt(sampleISR);
   sampleTimer->resume();
   
+  // initialise lookuptable
+  centralOctaveLookUpTable.initializeTable();
   // initialise communication
-  communication.Initialize_CAN();
-
-  
+  initializeCAN();
   //centralOctaveLookUpTable.initializeTable();
   
   // Initialize threading scanKeysTask
@@ -309,15 +227,15 @@ void setup()
       1,                 /* Task priority */
       &displayHandle);   /* Pointer to store the task handle */
 
-  // // Initialize threading decodeTask
-  // TaskHandle_t decodeHandle = NULL;
-  // xTaskCreate(
-  //     decodeTask, /* Function that implements the task */
-  //     "decode",         /* Text name for the task */
-  //     256,               /* Stack size in words, not bytes */
-  //     NULL,              /* Parameter passed into the task */
-  //     3,                 /* Task priority */
-  //     &decodeHandle);   /* Pointer to store the task handle */
+  // Initialize threading decodeTask
+  TaskHandle_t decodeHandle = NULL;
+  xTaskCreate(
+      decodeTask, /* Function that implements the task */
+      "decode",         /* Text name for the task */
+      256,               /* Stack size in words, not bytes */
+      NULL,              /* Parameter passed into the task */
+      3,                 /* Task priority */
+      &decodeHandle);   /* Pointer to store the task handle */
 
   // Start RTOS scheduler
   vTaskStartScheduler();
