@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <U8g2lib.h>
 #include <STM32FreeRTOS.h>
+#include <iostream>
 
 // Constants
 const uint32_t interval = 100; // Display update interval
@@ -56,6 +57,7 @@ const char *Key_set[13] = {"Not Pressed", "C", "C#", "D", "D#", "E", "F", "F#", 
 
 volatile int32_t currentStepSize;
 volatile uint8_t keyArray[7];
+SemaphoreHandle_t keyArrayMutex;
 
 // Function to set outputs using key matrix
 void setOutMuxBit(const uint8_t bitIdx, const bool value)
@@ -72,11 +74,11 @@ void setOutMuxBit(const uint8_t bitIdx, const bool value)
 
 uint8_t readCols()
 {
-  uint8_t Key_C = digitalRead(C0_PIN);
-  uint8_t Key_CS = digitalRead(C1_PIN);
-  uint8_t Key_D = digitalRead(C2_PIN);
-  uint8_t Key_DS = digitalRead(C3_PIN);
-  uint8_t concate_result = (Key_DS << 3) | (Key_D << 2) | (Key_CS << 1) | Key_C;
+  uint8_t C0 = digitalRead(C0_PIN);
+  uint8_t C1 = digitalRead(C1_PIN);
+  uint8_t C2 = digitalRead(C2_PIN);
+  uint8_t C3 = digitalRead(C3_PIN);
+  uint8_t concate_result = (C3 << 3) | (C2 << 2) | (C1 << 1) | C0;
   return concate_result;
 }
 
@@ -97,6 +99,19 @@ void sampleISR()
   analogWrite(OUTR_PIN, Vout + 128);
 }
 
+
+int detect_direction(uint8_t previous_state , uint8_t current_state ){
+  switch (previous_state){
+  case ():
+    break;
+  
+  default:
+    break;
+  }
+  
+}
+
+
 void scanKeysTask(void *pvParameters)
 {
   const TickType_t xFrequency = 50 / portTICK_PERIOD_MS;
@@ -104,17 +119,25 @@ void scanKeysTask(void *pvParameters)
   TickType_t xLastWakeTime = xTaskGetTickCount();
   // xLastWakeTime will store the time (tick count) of the last initiation.
   uint32_t localCurrentStepSize;
+  uint8_t previousKnob = 0;
+  uint8_t currentKnob;
+
   while (1)
   {
     vTaskDelayUntil(&xLastWakeTime, xFrequency);
     // vTaskDelayUntil blocks execution of the thread until xFrequency ticks have happened since the last execution of the loop.
-    for (uint8_t i = 0; i < 3; i++)
+    uint8_t localkeyArray[7];
+    for (uint8_t i = 0; i < 4; i++)
     {
       setRow(i);
       delayMicroseconds(3);
-      keyArray[i] = readCols();
+      localkeyArray[i] = readCols();
     }
-    uint32_t keys = keyArray[2] << 8 | keyArray[1] << 4 | keyArray[0];
+    xSemaphoreTake(keyArrayMutex, portMAX_DELAY);
+    std::copy(localkeyArray,localkeyArray+7,keyArray);
+    xSemaphoreGive(keyArrayMutex);
+
+    uint32_t keys = localkeyArray[2] << 8 | localkeyArray[1] << 4 | localkeyArray[0];
     localCurrentStepSize = 0;
     for (int g = 0; g < 12; g++)
     {
@@ -123,11 +146,13 @@ void scanKeysTask(void *pvParameters)
         localCurrentStepSize = stepSizes[g];
       }
     }
-    currentStepSize = localCurrentStepSize;
+    // currentStepSize = localCurrentStepSize;
     __atomic_store_n(&currentStepSize, localCurrentStepSize, __ATOMIC_RELAXED);
+    currentKnob = localkeyArray[3];
+    Serial.println(currentKnob);
   }
 }
-
+ 
 void displayUpdateTask(void *pvParameters)
 {
   const TickType_t xFrequency = 100 / portTICK_PERIOD_MS;
@@ -135,13 +160,17 @@ void displayUpdateTask(void *pvParameters)
   uint32_t output;
   uint8_t key_index;
   const char *output_key;
+  uint8_t localkeyArray[7];
   // Update display
   while (1)
   {
     vTaskDelayUntil(&xLastWakeTime, xFrequency);
     u8g2.clearBuffer();                 // clear the internal memory
     u8g2.setFont(u8g2_font_ncenB08_tr); // choose a suitable font
-    output = keyArray[2] << 8 | keyArray[1] << 4 | keyArray[0];
+    xSemaphoreTake(keyArrayMutex, portMAX_DELAY);
+    std::copy(keyArray,keyArray+7,localkeyArray);
+    xSemaphoreGive(keyArrayMutex);
+    output = localkeyArray[2] << 8 | localkeyArray[1] << 4 | localkeyArray[0];
     key_index = 0;
     for (int g = 0; g < 12; g++){
       if (((output >> g) & 1) == 0)
@@ -190,6 +219,9 @@ void setup()
   // Initialise UART
   Serial.begin(9600);
   Serial.println("Hello World");
+
+  // Initialise mutex
+  keyArrayMutex = xSemaphoreCreateMutex();
 
   // Initialise SampleISR
   TIM_TypeDef *Instance = TIM1;
