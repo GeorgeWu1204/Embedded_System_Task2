@@ -6,9 +6,8 @@
 #include <iostream>
 #include <string>
 #include <ES_CAN.h>
-#include <functional>
 
-QueueHandle_t msgInQ;
+// QueueHandle_t msgInQ;
 
 // void CAN_RX_ISR(void) {
 // 	uint8_t RX_Message_ISR[8];
@@ -85,7 +84,7 @@ public:
     // }
 
     void Initialize_CAN(){
-        msgInQ = xQueueCreate(36,8);
+        // msgInQ = xQueueCreate(36,8);
         CAN_Init(true);
         setCANFilter(0x123,0x7ff);
         //CAN_RegisterRX_ISR(CAN_RX_ISR);

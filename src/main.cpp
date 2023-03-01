@@ -4,9 +4,8 @@
 #include <STM32FreeRTOS.h>
 #include <iostream>
 #include <string>
-
 #include "knob.cpp"
-#include "sin.cpp"
+// #include "sin.cpp"
 #include "communication.cpp"
 // #include "global_variables.h"
 
@@ -76,8 +75,8 @@ volatile uint8_t globalRX_Message[8]={0};
 
 
 SemaphoreHandle_t keyArrayMutex;
-Knob knob1;
-Knob knob2;
+// Knob knob1;
+// Knob knob2;
 Knob knob3;
 Communication communication(0x123);
 //CentralOctaveLookUpTable centralOctaveLookUpTable;
