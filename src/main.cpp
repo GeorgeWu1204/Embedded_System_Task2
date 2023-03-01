@@ -2,6 +2,10 @@
 #include <U8g2lib.h>
 #include <STM32FreeRTOS.h>
 #include <iostream>
+#include <string>
+#include "Knob.cpp"
+#include <algorithm>
+#include <ES_CAN.h>
 
 // Constants
 const uint32_t interval = 100; // Display update interval
@@ -54,10 +58,20 @@ const int32_t stepSizes[12] = {
     96418755};
 
 const char *Key_set[13] = {"Not Pressed", "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
+const uint8_t octave = 4;
 
 volatile int32_t currentStepSize;
+volatile int8_t knob3Rotation;
 volatile uint8_t keyArray[7];
 SemaphoreHandle_t keyArrayMutex;
+Knob knob1;
+Knob knob2;
+Knob knob3;
+
+//CAN
+volatile uint8_t TX_Message[8] = {0};
+QueueHandle_t msgInQ;
+
 
 // Function to set outputs using key matrix
 void setOutMuxBit(const uint8_t bitIdx, const bool value)
@@ -95,20 +109,38 @@ void sampleISR()
 {
   static int32_t phaseAcc = 0;
   phaseAcc += currentStepSize;
-  int32_t Vout = phaseAcc >> 24;
+  int32_t Vout = (phaseAcc >> 24) -128;
+  Vout = Vout >> (8 - knob3Rotation);
   analogWrite(OUTR_PIN, Vout + 128);
 }
 
 
-int detect_direction(uint8_t previous_state , uint8_t current_state ){
-  switch (previous_state){
-  case ():
-    break;
-  
-  default:
-    break;
+void checkKeyChange(uint8_t previous_array [], uint8_t current_array []){
+  uint32_t current_keys = current_array[2] << 8 | current_array[1] << 4 | current_array[0];
+  uint32_t previous_keys = current_array[2] << 8 | current_array[1] << 4 | current_array[0];
+  uint32_t xor_keys = current_keys ^ previous_keys;
+  uint8_t index = -1;
+  for (int i = 0; i < 32; i++){
+    if((xor_keys>>i) == 1){
+      index = i;
+      break;
+    }
   }
-  
+  if (index != -1){
+    if (current_array[index] == 0){
+      // pressed
+      TX_Message[0] = 'P';
+      TX_Message[1] = octave;
+      TX_Message[2] = index;
+    
+    }
+    else{
+      // released
+      TX_Message[0] = 'R';
+      TX_Message[1] = octave;
+      TX_Message[2] = index;
+    }
+  } 
 }
 
 
@@ -119,14 +151,14 @@ void scanKeysTask(void *pvParameters)
   TickType_t xLastWakeTime = xTaskGetTickCount();
   // xLastWakeTime will store the time (tick count) of the last initiation.
   uint32_t localCurrentStepSize;
-  uint8_t previousKnob = 0;
-  uint8_t currentKnob;
+  uint8_t knob3_current_val;
+  uint8_t localkeyArray[7];
+  uint8_t previouslocalkeyArray[7];
 
   while (1)
   {
     vTaskDelayUntil(&xLastWakeTime, xFrequency);
     // vTaskDelayUntil blocks execution of the thread until xFrequency ticks have happened since the last execution of the loop.
-    uint8_t localkeyArray[7];
     for (uint8_t i = 0; i < 4; i++)
     {
       setRow(i);
@@ -136,6 +168,10 @@ void scanKeysTask(void *pvParameters)
     xSemaphoreTake(keyArrayMutex, portMAX_DELAY);
     std::copy(localkeyArray,localkeyArray+7,keyArray);
     xSemaphoreGive(keyArrayMutex);
+    
+    checkKeyChange(previouslocalkeyArray, localkeyArray);
+    // CAN_TX(0x123, TX_Message); // send the message over the bus using the CAN library
+    
 
     uint32_t keys = localkeyArray[2] << 8 | localkeyArray[1] << 4 | localkeyArray[0];
     localCurrentStepSize = 0;
@@ -146,10 +182,14 @@ void scanKeysTask(void *pvParameters)
         localCurrentStepSize = stepSizes[g];
       }
     }
-    // currentStepSize = localCurrentStepSize;
     __atomic_store_n(&currentStepSize, localCurrentStepSize, __ATOMIC_RELAXED);
-    currentKnob = localkeyArray[3];
-    Serial.println(currentKnob);
+    knob3_current_val = localkeyArray[3] & 3 ;
+    knob3.updateRotationValue(knob3_current_val);
+    knob3Rotation = knob3.getRotationValue();
+    
+    std::copy(localkeyArray, localkeyArray + 7, previouslocalkeyArray); 
+
+    Serial.println(knob3Rotation);
   }
 }
  
@@ -171,21 +211,41 @@ void displayUpdateTask(void *pvParameters)
     std::copy(keyArray,keyArray+7,localkeyArray);
     xSemaphoreGive(keyArrayMutex);
     output = localkeyArray[2] << 8 | localkeyArray[1] << 4 | localkeyArray[0];
+    
     key_index = 0;
+    
     for (int g = 0; g < 12; g++){
       if (((output >> g) & 1) == 0)
       {
         key_index = g + 1;
       }
     }
-    u8g2.setCursor(2, 10);
-    u8g2.print(output, HEX);
-    u8g2.setCursor(2, 20);
-    u8g2.print(Key_set[key_index]);
-    u8g2.sendBuffer(); // transfer internal memory to the display
-    // Toggle LED
-    digitalToggle(LED_BUILTIN);
+    // u8g2.setCursor(2, 10);
+    // u8g2.print(output, HEX);
+    // u8g2.setCursor(2, 20);
+    // u8g2.print(Key_set[key_index]);
+    // u8g2.sendBuffer(); // transfer internal memory to the display
+    // // Toggle LED
+    // digitalToggle(LED_BUILTIN);
+
+    // // Display the latest transmit message
+    // u8g2.setCursor(66,30);
+    // u8g2.print((char) TX_Message[0]);
+    // u8g2.print(TX_Message[1]);
+    // u8g2.print(TX_Message[2]);
+    u8g2.setCursor(66,30);
+    u8g2.print((char) TX_Message[0]);
+    u8g2.print(TX_Message[1]);
+    u8g2.print(TX_Message[2]);
   }
+}
+
+// Incoming messages will be written into the queue in an ISR
+void CAN_RX_ISR (void) {
+	uint8_t RX_Message_ISR[8];
+	uint32_t ID;
+	CAN_RX(ID, RX_Message_ISR); // gets the message data
+	xQueueSendFromISR(msgInQ, RX_Message_ISR, NULL); // places the data in the queue
 }
 
 void setup()
@@ -230,6 +290,14 @@ void setup()
   sampleTimer->attachInterrupt(sampleISR);
   sampleTimer->resume();
 
+  // initialise CAN bus
+  CAN_Init(true); // loopback mode - receive and acknowledge its own messages
+  setCANFilter(0x123,0x7ff); // only messages with the ID 0x123 will be received
+  CAN_Start();
+
+  msgInQ = xQueueCreate(36,8); // (number of params, size of each in bytes)
+
+  
   // Initialize threading scanKeysTask
   TaskHandle_t scanKeysHandle = NULL;
   xTaskCreate(
@@ -252,7 +320,7 @@ void setup()
 
   // Start RTOS scheduler
   vTaskStartScheduler();
-}
+} 
 
 void loop()
 {
