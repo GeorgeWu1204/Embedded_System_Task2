@@ -8,5 +8,6 @@
 void decodeTask(void *pvParameters);
 void sendMessage(uint8_t previous_array [], uint8_t current_array []);
 void initializeCAN();
+void CAN_TX_Task (void * pvParameters);
 
 #endif

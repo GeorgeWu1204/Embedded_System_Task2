@@ -1,5 +1,6 @@
 #include "global_variables.h"
 
+
 const uint32_t interval = 100; // Display update interval
 
 // Pin definitions
@@ -49,7 +50,6 @@ const char * Key_set[13] = {"Not Pressed", "C", "C#", "D", "D#", "E", "F", "F#",
 
 const uint8_t octave = 4;
 
-volatile int32_t currentStepSize = 0;
 volatile int32_t currentKey = 0;
 volatile int8_t knob3Rotation = 0;
 volatile uint8_t keyArray[7] = {0};
@@ -58,4 +58,26 @@ volatile uint8_t globalTX_Message[8]={0};
 volatile uint8_t globalRX_Message[8]={0};
 
 volatile QueueHandle_t msgInQ;
+volatile QueueHandle_t msgOutQ;
+
+SemaphoreHandle_t keyArrayMutex;
 SemaphoreHandle_t RX_MessageMutex;
+SemaphoreHandle_t CAN_TX_Semaphore;
+
+void setPinDirections(){
+  pinMode(RA0_PIN, OUTPUT);
+  pinMode(RA1_PIN, OUTPUT);
+  pinMode(RA2_PIN, OUTPUT);
+  pinMode(REN_PIN, OUTPUT);
+  pinMode(OUT_PIN, OUTPUT);
+  pinMode(OUTL_PIN, OUTPUT);
+  pinMode(OUTR_PIN, OUTPUT);
+  pinMode(LED_BUILTIN, OUTPUT);
+
+  pinMode(C0_PIN, INPUT);
+  pinMode(C1_PIN, INPUT);
+  pinMode(C2_PIN, INPUT);
+  pinMode(C3_PIN, INPUT);
+  pinMode(JOYX_PIN, INPUT);
+  pinMode(JOYY_PIN, INPUT);
+}

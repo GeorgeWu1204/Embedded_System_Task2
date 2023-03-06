@@ -5,6 +5,8 @@
 #include <iostream>
 #include <string>
 
+
+
 #ifndef GLOBAL_VARIABLES_H
 #define GLOBAL_VARIABLES_H
 
@@ -44,13 +46,19 @@ extern const int HKOE_BIT;
 extern const int32_t stepSizes[12];
 extern const char *Key_set[13];
 extern const uint8_t octave;
-extern volatile int32_t currentStepSize;
 extern volatile int32_t currentKey;
 extern volatile int8_t knob3Rotation;
 extern volatile uint8_t keyArray[7];
 extern volatile uint8_t globalTX_Message[8];
 extern volatile uint8_t globalRX_Message[8];
 extern volatile QueueHandle_t msgInQ;
+extern volatile QueueHandle_t msgOutQ;
+extern SemaphoreHandle_t keyArrayMutex;
 extern SemaphoreHandle_t RX_MessageMutex;
+extern SemaphoreHandle_t CAN_TX_Semaphore;
+
+//setup function
+void setPinDirections();
+
 
 #endif

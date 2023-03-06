@@ -1,10 +1,4 @@
-// #include <Arduino.h>
-// #include <U8g2lib.h>
-// #include <STM32FreeRTOS.h>
-// #include <iostream>
-// #include <string>
 #include "global_variables.h"
-
 
 class Knob { 
     private:  
