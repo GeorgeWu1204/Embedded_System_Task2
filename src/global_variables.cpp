@@ -50,10 +50,11 @@ const char * Key_set[13] = {"Not Pressed", "C", "C#", "D", "D#", "E", "F", "F#",
 
 const uint8_t octave = 4;
 
+
 volatile int32_t currentKey = 0;
 volatile int8_t knob3Rotation = 0;
 volatile uint8_t keyArray[7] = {0};
-
+volatile bool pressed;
 volatile uint8_t globalTX_Message[8]={0};
 volatile uint8_t globalRX_Message[8]={0};
 

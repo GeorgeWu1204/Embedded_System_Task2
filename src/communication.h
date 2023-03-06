@@ -6,7 +6,7 @@
 #define COMMUNICATION_H
 
 void decodeTask(void *pvParameters);
-void sendMessage(uint8_t previous_array [], uint8_t current_array []);
+void sendMessage(int8_t index);
 void initializeCAN();
 void CAN_TX_Task (void * pvParameters);
 

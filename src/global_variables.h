@@ -5,6 +5,13 @@
 #include <iostream>
 #include <string>
 
+// test mode enable initialisation
+// #define DISABLE_THREADS
+// #define TEST_SCANKEYS
+// #define TEST_DISPLAY
+// # define TEST_DECODE
+// # define TEST_TRANSMIT
+
 
 
 #ifndef GLOBAL_VARIABLES_H
@@ -47,6 +54,7 @@ extern const int32_t stepSizes[12];
 extern const char *Key_set[13];
 extern const uint8_t octave;
 extern volatile int32_t currentKey;
+extern volatile bool pressed;
 extern volatile int8_t knob3Rotation;
 extern volatile uint8_t keyArray[7];
 extern volatile uint8_t globalTX_Message[8];

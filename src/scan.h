@@ -5,6 +5,8 @@
 #ifndef SCAN_H
 #define SCAN_H
 
+
 void scanKeysTask(void *pvParameters);
+// void *pvParameters
 
 #endif

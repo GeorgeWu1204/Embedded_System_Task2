@@ -52,17 +52,17 @@ class CentralOctaveLookUpTable{
 
     void sineTable(int32_t tableHz[], uint8_t keyIndex){
             uint8_t tableSize = tableSizes[keyIndex];
-            Serial.println(sizeof(tableSize));
+            // Serial.println(sizeof(tableSize));
             for(int i=0; i<tableSize;i++){
                 tableHz[i] = 127*sin(2*M_PI*((baseHz[keyIndex])/22000.0)*i);
-                Serial.println(tableHz[i]);
+                // Serial.println(tableHz[i]);
             }
         }
 
     public:
 
         void initializeTable(){
-            Serial.print("Init");
+            // Serial.print("Init");
             sineTable(C,0);
             sineTable(C_sharp,1);
             sineTable(D,2);
