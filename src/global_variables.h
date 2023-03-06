@@ -13,7 +13,6 @@
 // # define TEST_TRANSMIT
 
 
-
 #ifndef GLOBAL_VARIABLES_H
 #define GLOBAL_VARIABLES_H
 
@@ -52,7 +51,7 @@ extern const int HKOE_BIT;
 // Global variables
 extern const int32_t stepSizes[12];
 extern const char *Key_set[13];
-extern const uint8_t octave;
+extern volatile uint8_t octave;
 extern volatile int32_t currentKey;
 extern volatile bool pressed;
 extern volatile int8_t knob3Rotation;
@@ -67,6 +66,7 @@ extern SemaphoreHandle_t CAN_TX_Semaphore;
 
 //setup function
 void setPinDirections();
+
 
 
 #endif

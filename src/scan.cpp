@@ -37,20 +37,19 @@ void scanKeysTask(void *pvParameters)
   uint32_t previous_keys = 0;
   uint32_t current_keys;
   uint32_t xor_keys;
-  // int8_t index = -1;
   
-  
-
+  bool outBits[8] = {false,false,false,true,true,true,true};
   while (1) {
     # ifndef TEST_SCANKEYS
     vTaskDelayUntil(&xLastWakeTime, xFrequency);
     # endif
     
     // vTaskDelayUntil blocks execution of the thread until xFrequency ticks have happened since the last execution of the loop.
-    for (uint8_t i = 0; i < 4; i++){
-      setRow(i);
-      delayMicroseconds(3);
-      localkeyArray[i] = readCols();
+    for (uint8_t i = 0; i < 7; i++){
+        setRow(i);
+        digitalWrite(OUT_PIN, outBits[i]); //output handshake signal
+        delayMicroseconds(3);
+        localkeyArray[i] = readCols();
     }
     xSemaphoreTake(keyArrayMutex, portMAX_DELAY);
     std::copy(localkeyArray,localkeyArray+7,keyArray);
@@ -88,9 +87,9 @@ void scanKeysTask(void *pvParameters)
           
         }
       }
-      
-      __atomic_store_n(&currentKey, currentIndex, __ATOMIC_RELAXED);
-      
+      if (__atomic_load_n(&octave,__ATOMIC_RELAXED)== 4){
+        __atomic_store_n(&currentKey, currentIndex, __ATOMIC_RELAXED);
+      }
       previous_keys = current_keys;
     }
   
@@ -99,6 +98,30 @@ void scanKeysTask(void *pvParameters)
     knob3.updateRotationValue(knob3_current_val);
     knob3Rotation = knob3.getRotationValue();
     std::copy(localkeyArray, localkeyArray + 7, previouslocalkeyArray); 
+
+    // detect handshaking
+    
+    if (((localkeyArray[5] >> 3) & 1 == 1) && ((localkeyArray[6] >> 3) & 1 == 0)){
+        // most west keyboard
+        if (__atomic_load_n(&octave,__ATOMIC_RELAXED) != 4){
+            __atomic_store_n(&octave, 4, __ATOMIC_RELAXED);
+            Serial.print("lower half: set octave to 4");
+        }
+    }
+    else if (((localkeyArray[5] >> 3) & 1 == 0) && ((localkeyArray[5] >> 3) & 1 == 1)){
+        // most east keyboard
+        if (__atomic_load_n(&octave,__ATOMIC_RELAXED) != 5){
+            __atomic_store_n(&octave, 5, __ATOMIC_RELAXED);
+            Serial.print("upper half: set octave to 5");
+        }
+    }
+    else if (((localkeyArray[5] >> 3) & 1 == 0) && ((localkeyArray[5] >> 3) & 1 == 0)){
+        // most east keyboard
+        if (__atomic_load_n(&octave,__ATOMIC_RELAXED) != 4){
+            __atomic_store_n(&octave, 4, __ATOMIC_RELAXED);
+            Serial.print("upper half: set octave to 4");
+        }
+    }
 
     #ifdef TEST_SCANKEYS
     break;

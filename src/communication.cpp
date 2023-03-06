@@ -65,13 +65,13 @@ void sendMessage(int8_t index){
     if (__atomic_load_n(&pressed,__ATOMIC_RELAXED)){
         // pressed
         TX_Message[0] = 'P';
-        TX_Message[1] = octave;
+        TX_Message[1] = __atomic_load_n(&octave,__ATOMIC_RELAXED);
         TX_Message[2] = index;
     }
     else{
         // released
         TX_Message[0] = 'R';
-        TX_Message[1] = octave;
+        TX_Message[1] = __atomic_load_n(&octave,__ATOMIC_RELAXED);
         TX_Message[2] = index;
     }
     xQueueSend( msgOutQ, TX_Message, portMAX_DELAY);

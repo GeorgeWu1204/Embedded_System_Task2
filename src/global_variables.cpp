@@ -48,7 +48,7 @@ const int32_t stepSizes[12] = {
 
 const char * Key_set[13] = {"Not Pressed", "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
 
-const uint8_t octave = 4;
+volatile uint8_t octave = 4;
 
 
 volatile int32_t currentKey = 0;
