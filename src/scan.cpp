@@ -1,5 +1,6 @@
 # include "scan.h"
 
+
 Knob knob3;
 
 uint8_t readCols()
@@ -22,28 +23,29 @@ void setRow(uint8_t rowIdx)
 }
 
 
+
 void scanKeysTask(void *pvParameters)
 {
-  const TickType_t xFrequency = 20 / portTICK_PERIOD_MS;
-  // xFrequency initiation interval of task set to 20ms
+  const TickType_t xFrequency = 50 / portTICK_PERIOD_MS;
+  // xFrequency initiation interval of task set to 50ms
   TickType_t xLastWakeTime = xTaskGetTickCount();
   // xLastWakeTime will store the time (tick count) of the last initiation.
   uint8_t knob3_current_val;
   uint8_t localkeyArray[7];
   uint8_t previouslocalkeyArray[7];
-  // uint16_t PIndices = 0;
-  // uint16_t RIndices = 0;
-  uint8_t currentIndex = 100;
   uint32_t previous_keys = 0;
   uint32_t current_keys;
+  uint32_t current_keys_shifted;
   uint32_t xor_keys;
-  
-  bool outBits[8] = {false,false,false,true,true,true,true};
+  uint8_t local_octave;
+  bool pressed;
+
+  std::vector<uint16_t> local_pressed_keys;
+
   while (1) {
     # ifndef TEST_SCANKEYS
     vTaskDelayUntil(&xLastWakeTime, xFrequency);
     # endif
-    
     // vTaskDelayUntil blocks execution of the thread until xFrequency ticks have happened since the last execution of the loop.
     for (uint8_t i = 0; i < 7; i++){
         setRow(i);
@@ -55,73 +57,75 @@ void scanKeysTask(void *pvParameters)
     std::copy(localkeyArray,localkeyArray+7,keyArray);
     xSemaphoreGive(keyArrayMutex);
 
-    // send message if any key changed
+    /// send message if any key changed
     current_keys = localkeyArray[2] << 8 | localkeyArray[1] << 4 | localkeyArray[0];
     previous_keys = previouslocalkeyArray[2] << 8 | previouslocalkeyArray[1] << 4 | previouslocalkeyArray[0];
     xor_keys = current_keys ^ previous_keys;
-
     // for sound output
     # ifdef TEST_SCANKEYS
     xor_keys = 1;
     # endif
     
+    /// modified sound map for local key press 
+    current_keys_shifted = current_keys;
+    
     if ((xor_keys) != 0){
-      // Serial.println(current_keys);
-      // Serial.println(previous_keys);
-  
+      local_octave = __atomic_load_n(&octave, __ATOMIC_RELAXED);
       for (int i = 0; i < 12; i++){
-        if(((xor_keys>>i) & 1 )== 1){
-          currentIndex = i;
-          if (((current_keys >> i) & 1) == 0){
-            // pressed
-            __atomic_store_n(&pressed,true, __ATOMIC_RELAXED); 
-            // 把 i 放入发声array
-          }
-          else{
-            // released
-            __atomic_store_n(&pressed,false, __ATOMIC_RELAXED); 
-            // 把 i 从发声array里移出来
-          }
-          sendMessage(i);
-          break;
-          
+        if ((xor_keys & 1) == 1){
+          pressed = (current_keys_shifted & 1);
+          sendMessage(i, pressed);
+          modified_soundMap(local_octave, i, pressed);
         }
+        xor_keys = xor_keys >> 1;
+        current_keys_shifted = current_keys_shifted >> 1;
       }
-      if (__atomic_load_n(&octave,__ATOMIC_RELAXED)== 4){
-        __atomic_store_n(&currentKey, currentIndex, __ATOMIC_RELAXED);
-      }
-      previous_keys = current_keys;
+      
+      /// set it to previous_keys in the end. And only if current_keys is different from previous_keys
+      previous_keys = current_keys; 
     }
-  
-    // detect knob rotation
+
+
+    /// detect knob rotation
     knob3_current_val = localkeyArray[3] & 3 ;
     knob3.updateRotationValue(knob3_current_val);
     knob3Rotation = knob3.getRotationValue();
     std::copy(localkeyArray, localkeyArray + 7, previouslocalkeyArray); 
-
-    // detect handshaking
     
-    if (((localkeyArray[5] >> 3) & 1 == 1) && ((localkeyArray[6] >> 3) & 1 == 0)){
-        // most west keyboard
-        if (__atomic_load_n(&octave,__ATOMIC_RELAXED) != 4){
-            __atomic_store_n(&octave, 4, __ATOMIC_RELAXED);
-            Serial.print("lower half: set octave to 4");
-        }
+    bool position_change_detected = false;
+    if (reorganising == false){
+      
+      if (position_table.empty()) {
+        Serial.println("hihi");
+        previous_west = !((localkeyArray[5] >> 3) & 1);
+        previous_east = !((localkeyArray[6] >> 3) & 1);
+        Serial.println(previous_west);
+        Serial.println(previous_east);
+      }
+      bool current_west = !((localkeyArray[5] >> 3) & 1);
+      bool current_east = !((localkeyArray[6] >> 3) & 1);
+      // Serial.println((previous_west != current_west));
+      // Serial.println((previous_east != current_east));
+      // Serial.println((previous_west != current_west) || (previous_east != current_east));
+      if ((previous_west != current_west) || (previous_east != current_east)){
+        position_change_detected = true;
+        previous_west = current_west;
+        previous_east = current_east;
+      }
+      if (position_change_detected){
+        Serial.println("send message");
+        sendHandshakeMessage('S',0, 0);
+      }
+      // call Reorganise when on the first run (position_table is empty)
+      if (position_table.empty() || position_change_detected){
+        // Create the child task (reorganizePositions) and start it
+        reorganising = true;
+        
+        xTaskCreate(reorganizePositions, "Reorganize Task", 256, NULL, 4, &reorganizeHandle);
+        // Wait for the child task to finish
+      }
     }
-    else if (((localkeyArray[5] >> 3) & 1 == 0) && ((localkeyArray[5] >> 3) & 1 == 1)){
-        // most east keyboard
-        if (__atomic_load_n(&octave,__ATOMIC_RELAXED) != 5){
-            __atomic_store_n(&octave, 5, __ATOMIC_RELAXED);
-            Serial.print("upper half: set octave to 5");
-        }
-    }
-    else if (((localkeyArray[5] >> 3) & 1 == 0) && ((localkeyArray[5] >> 3) & 1 == 0)){
-        // most east keyboard
-        if (__atomic_load_n(&octave,__ATOMIC_RELAXED) != 4){
-            __atomic_store_n(&octave, 4, __ATOMIC_RELAXED);
-            Serial.print("upper half: set octave to 4");
-        }
-    }
+
 
     #ifdef TEST_SCANKEYS
     break;

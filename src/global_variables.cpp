@@ -48,13 +48,10 @@ const int32_t stepSizes[12] = {
 
 const char * Key_set[13] = {"Not Pressed", "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
 
-volatile uint8_t octave = 4;
+volatile uint8_t octave;
 
-
-volatile int32_t currentKey = 0;
 volatile int8_t knob3Rotation = 0;
 volatile uint8_t keyArray[7] = {0};
-volatile bool pressed;
 volatile uint8_t globalTX_Message[8]={0};
 volatile uint8_t globalRX_Message[8]={0};
 
@@ -64,6 +61,33 @@ volatile QueueHandle_t msgOutQ;
 SemaphoreHandle_t keyArrayMutex;
 SemaphoreHandle_t RX_MessageMutex;
 SemaphoreHandle_t CAN_TX_Semaphore;
+SemaphoreHandle_t sound_tableMutex;
+
+SemaphoreHandle_t sampleBufferSemaphore;
+
+
+// const uint8_t SAMPLE_BUFFER_SIZE = 4;
+uint8_t sampleBuffer0[SAMPLE_BUFFER_SIZE];
+uint8_t sampleBuffer1[SAMPLE_BUFFER_SIZE];
+volatile bool writeBuffer1 = false;
+
+uint32_t local_timestep [12] = {
+    0, 0, 0, 0,
+    0, 0, 0, 0,
+    0, 0, 0, 0
+};
+volatile uint16_t global_keyArray_concated;
+
+std::map<uint8_t, std::vector<uint16_t> > sound_table; 
+std::map<uint8_t, uint8_t> position_table;
+volatile bool reorganising = false;
+volatile bool previous_west;
+volatile bool previous_east;
+TaskHandle_t reorganizeHandle;
+uint8_t ownID;
+
+volatile bool outBits[8] = {false,false,false,true,true,true,true};
+
 
 void setPinDirections(){
   pinMode(RA0_PIN, OUTPUT);

@@ -1,10 +1,13 @@
 #include "communication.h"
 
+
+
+
 uint8_t TX_Message[8] = {0};
 
 void decodeTask(void *pvParameters){
     uint8_t localRX_Message[8];
-
+    //Serial.println("start decodeTask");
     
     while (1){
 
@@ -13,28 +16,50 @@ void decodeTask(void *pvParameters){
         std::copy(localRX_Message,localRX_Message+8,globalRX_Message);
         xSemaphoreGive(RX_MessageMutex);
 
-        uint8_t press_release = localRX_Message[0];
-        uint8_t octave_number = localRX_Message[1];
-        uint8_t note_number = localRX_Message[2];
-
-        // if (press_release == 'P'){
-        //     // convert the note number to a step size
-        //     // stepSize = stepSize << (octave_number-4);
-        // }
-        if(press_release == 'R'){
-            note_number = 100;
+        
+        uint8_t first_message_bit = localRX_Message[0];
+        if (first_message_bit == 'S'){
+            reorganising = true;
+            // Create the child task (reorganizePositions) and start it
+            TaskHandle_t reorganizeHandle;
+            xTaskCreate(reorganizePositions, "Reorganize Task", 256, NULL, 1, &reorganizeHandle);
+            // Wait for the child task to finish
+            vTaskDelete(reorganizeHandle);
         }
-      
-        __atomic_store_n(&currentKey, note_number, __ATOMIC_RELAXED);
-
+        else if (first_message_bit == 'L'){
+            Serial.println("received");
+            position_table[localRX_Message[2]] = localRX_Message[1]; 
+        }
+        else if (first_message_bit == 'E'){
+            outBits[5] = true;
+            outBits[6] = true;
+            octave = 4+(position_table[ownID]-(position_table.size()+1)/2);
+            reorganising = false;
+        }
+        else{
+            uint8_t octave_number = localRX_Message[1];
+            uint8_t note_number = localRX_Message[2];
+            if (first_message_bit == 'P'){
+                modified_soundMap(octave_number, note_number, true);
+                // xSemaphoreTake(sound_tableMutex, portMAX_DELAY);
+                // sound_table.find(octave_number)->second.push_back(note_number);
+                // xSemaphoreGive(sound_tableMutex);
+            }
+            else if(first_message_bit == 'R'){
+                modified_soundMap(octave_number, note_number, false);
+                // xSemaphoreTake(sound_tableMutex, portMAX_DELAY);
+                // sound_table.find(octave_number)->second.erase(std::remove(sound_table.find(octave_number)->second.begin(), sound_table.find(octave_number)->second.end(), note_number), sound_table.find(octave_number)->second.end());
+                // xSemaphoreGive(sound_tableMutex);
+            }
+        }
         #ifdef TEST_DECODE
         break;
         #endif
     }
-
 }
 
 void CAN_TX_Task (void * pvParameters) {
+    //Serial.println("start CAN TX Task");
 	uint8_t msgOut[8];
 	while (1) {
 	    xQueueReceive(msgOutQ, msgOut, portMAX_DELAY);
@@ -48,21 +73,8 @@ void CAN_TX_Task (void * pvParameters) {
 	}
 }
 
-void sendMessage(int8_t index){
-    // uint32_t current_keys = current_array[2] << 8 | current_array[1] << 4 | current_array[0];
-    // uint32_t previous_keys = previous_array[2] << 8 | previous_array[1] << 4 | previous_array[0];
-    // uint32_t xor_keys = current_keys ^ previous_keys;
-    // 
-    // for (int i = 0; i < 32; i++){
-    //     if(((xor_keys>>i) & 1 )== 1){
-    //     index = i;
-    //     Serial.print("index_update");
-    //     Serial.println(index);
-    //     break;
-    //     }
-    // }
-    // if (index != -1){
-    if (__atomic_load_n(&pressed,__ATOMIC_RELAXED)){
+void sendMessage(int8_t index, bool press){
+    if (press){
         // pressed
         TX_Message[0] = 'P';
         TX_Message[1] = __atomic_load_n(&octave,__ATOMIC_RELAXED);
@@ -76,8 +88,11 @@ void sendMessage(int8_t index){
     }
     xQueueSend( msgOutQ, TX_Message, portMAX_DELAY);
     std::copy(TX_Message, TX_Message + 8, globalTX_Message); 
-    } 
-// }
+} 
+
+
+
+
 
 void CAN_RX_ISR(void) {
 	uint8_t RX_Message_ISR[8];
@@ -105,12 +120,11 @@ void initializeCAN(){
     msgOutQ = xQueueCreate(384,8);
     #endif
     
-    CAN_Init(true);
+    CAN_Init(false);
     setCANFilter(0x123,0x7ff);
     CAN_RegisterRX_ISR(CAN_RX_ISR);
     CAN_RegisterTX_ISR(CAN_TX_ISR);
     CAN_Start();
 }
-
 
 

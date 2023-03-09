@@ -26,7 +26,6 @@ void displayUpdateTask(void *pvParameters)
     const char *output_key;
     uint8_t localkeyArray[7];
 
-
     // Update display
     while (1)
     {
@@ -53,10 +52,15 @@ void displayUpdateTask(void *pvParameters)
         u8g2.print(globalTX_Message[1]);
         u8g2.print(globalTX_Message[2]);
 
-        u8g2.setCursor(60,30);
+        u8g2.setCursor(50,30);
         u8g2.print((char) globalRX_Message[0]);
         u8g2.print(globalRX_Message[1]);
         u8g2.print(globalRX_Message[2]);
+ 
+
+        u8g2.setCursor(98,30);
+        u8g2.print("O");
+        u8g2.print(octave);
         u8g2.sendBuffer();
 
         //Toggle LED

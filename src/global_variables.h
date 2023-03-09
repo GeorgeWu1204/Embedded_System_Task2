@@ -4,6 +4,8 @@
 #include <STM32FreeRTOS.h>
 #include <iostream>
 #include <string>
+#include <map>
+#include <vector>
 
 // test mode enable initialisation
 // #define DISABLE_THREADS
@@ -52,8 +54,6 @@ extern const int HKOE_BIT;
 extern const int32_t stepSizes[12];
 extern const char *Key_set[13];
 extern volatile uint8_t octave;
-extern volatile int32_t currentKey;
-extern volatile bool pressed;
 extern volatile int8_t knob3Rotation;
 extern volatile uint8_t keyArray[7];
 extern volatile uint8_t globalTX_Message[8];
@@ -63,9 +63,47 @@ extern volatile QueueHandle_t msgOutQ;
 extern SemaphoreHandle_t keyArrayMutex;
 extern SemaphoreHandle_t RX_MessageMutex;
 extern SemaphoreHandle_t CAN_TX_Semaphore;
+extern SemaphoreHandle_t sound_tableMutex;
+
+extern SemaphoreHandle_t sampleBufferSemaphore;
+extern volatile uint16_t global_keyArray_concated;
+extern uint32_t local_timestep [12];
+const uint8_t SAMPLE_BUFFER_SIZE = 128;
+extern uint8_t sampleBuffer0[SAMPLE_BUFFER_SIZE];
+extern uint8_t sampleBuffer1[SAMPLE_BUFFER_SIZE];
+extern volatile bool writeBuffer1;
+extern volatile bool outBits[8];
+extern TaskHandle_t reorganizeHandle;
+extern uint8_t ownID;
+
+const int32_t tableSizes_sub1 [] = { 
+     // we have to know the size at comile time.
+    83,
+    78,
+    74,
+    70,
+    66,
+    62,
+    58,
+    55,
+    52,
+    49,
+    46,
+    44
+};
+
+extern std::map<uint8_t, std::vector<uint16_t> > sound_table; 
+extern std::map<uint8_t, uint8_t> position_table;
+extern volatile bool reorganising;
+extern volatile bool previous_west;
+extern volatile bool previous_east;
 
 //setup function
 void setPinDirections();
+
+
+
+
 
 
 
