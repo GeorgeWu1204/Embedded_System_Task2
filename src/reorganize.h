@@ -3,7 +3,7 @@
 #ifndef REORGANIZE_H
 #define REORGANIZE_H
 
-void reorganizePositions(void *pvParameters);
+void reorganizePositions();
 void sendHandshakeMessage(int8_t msg0, uint8_t msg1, uint8_t msg2);
 uint8_t getHashedID();
 #endif

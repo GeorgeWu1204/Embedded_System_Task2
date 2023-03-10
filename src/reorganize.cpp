@@ -1,3 +1,4 @@
+# include "scan.h"
 # include "reorganize.h"
 
 uint8_t HS_TX_Message[8] = {0};
@@ -27,49 +28,132 @@ uint8_t getHashedID(){
     return hash;
 }
 
-void reorganizePositions(void *pvParameters){
-    Serial.println("in reorganisePositions task");
-    position_table.empty();
-    uint8_t position;
-    uint8_t reorganizeKeyArray[7];
-    xSemaphoreTake(keyArrayMutex, portMAX_DELAY);
-    std::copy(keyArray,keyArray+7,reorganizeKeyArray);
-    xSemaphoreGive(keyArrayMutex);
-    Serial.println(!((reorganizeKeyArray[5] >> 3) & 1) == 1);
-    while (!((reorganizeKeyArray[5] >> 3) & 1) == 1){
-        // wait until the left side signal is off
+void reorganizePositions(){
+    std::map<uint8_t, uint8_t> position_table;
+    uint8_t position;    
+    uint8_t westeastArray[2] = {0,0};
+    uint8_t localRX_Message[8];
+
+    for (uint8_t i = 0; i < 2; i++){
+        setRow(i+5);
+        digitalWrite(OUT_PIN, true); //output handshake signal
+        digitalWrite(REN_PIN, 1);
+        delayMicroseconds(3);
+        westeastArray[i] = digitalRead(C3_PIN);
+        digitalWrite(REN_PIN, 0);
+        Serial.println(westeastArray[i]);
     }
-    if (position_table.empty()){
-        position = 1;
-    }
-    else{
-        position = position_table.size()+1;
-    }
-    Serial.print("position: ");
-    Serial.println(position);
-    Serial.print("ID: ");
-    Serial.println(ownID);
-    
-    position_table[ownID] = position;
-    if (!(position == 1 && (((reorganizeKeyArray[6] >> 3) & 1) == 1))){ // if not the case that there is only one keyboard
-        Serial.println("line55");
-        sendHandshakeMessage('L',position,ownID);
-        // turn myself signal off
-        if (((reorganizeKeyArray[6] >> 3) & 1) == 1){
-            // if this is the last one
-            sendHandshakeMessage('E',0,0);
-        }  
-        else{
-            outBits[5] = false;
-            outBits[6] = false;
+
+    // FIRST KEYBOARD
+    if (westeastArray[0] == 1){ // if I am the most west keyboard
+        if (westeastArray[1] == 1){ // if I am the single keyboard
+            previous_west = 0;
+            previous_east = 0;
+            
+            position_table[ownID] = 1;
+            octave = 4;
+            Serial.println("previous:");
+            Serial.println(previous_west);
+            Serial.println(previous_east);
+
+            Serial.print("Octave: ");
+            Serial.println(octave);
+            return;
         }
-        // variable 'reorganising' will be set to false outside
+        else{
+            Serial.println("SentL");
+            delayMicroseconds(10);
+            sendHandshakeMessage('L',1,ownID);
+            // turn off myself
+            for (uint8_t i = 5; i < 7; i++){
+                setRow(i);
+                digitalWrite(OUT_PIN, false); 
+                delayMicroseconds(3);
+            }   
+        }
     }
-    else{ // single board
-        octave = 4;
-        reorganising = false;  // this is set to false here for single board
+    // MIDDLE & LAST KEYBOARD
+    else{
+        Serial.println("I am middle or last keyboard");
+    
+        while (westeastArray[0] == 0){ // if I am not the most west keyboard, wait until I am the most west keyboard
+            // read west
+            for (uint8_t i = 0; i < 2; i++){
+                setRow(i+5);
+                digitalWrite(OUT_PIN, true); //output handshake signal
+                digitalWrite(REN_PIN, 1);
+                delayMicroseconds(3);
+                westeastArray[i] = digitalRead(C3_PIN);
+                digitalWrite(REN_PIN, 0);
+            }   
+        }
+        while (xQueueReceive(msgInQ, localRX_Message, 0) == pdTRUE){
+            uint8_t first_message_bit = localRX_Message[0];
+            if (first_message_bit == 'L'){
+                Serial.println("received");
+                position_table[localRX_Message[2]] = localRX_Message[1]; 
+            }
+        }
+        position = position_table.size()+1;
+        delayMicroseconds(10);
+        sendHandshakeMessage('L',position,ownID);
+        position_table[position] = ownID;
+        // turn off myself
+        for (uint8_t i = 5; i < 7; i++){
+            setRow(i);
+            digitalWrite(OUT_PIN, false); //output handshake signal
+            delayMicroseconds(3);
+        }   
+        // LAST KEYBOARD
+        if (westeastArray[1] == 1){
+            previous_west = 1;
+            previous_east = 0;
+            // if this  the last one
+            sendHandshakeMessage('E',0,0);
+            // turn on myself
+            for (uint8_t i = 5; i < 7; i++){
+                setRow(i);
+                digitalWrite(OUT_PIN, true); 
+                delayMicroseconds(3);
+            }   
+            octave = 4+(position_table[ownID]-(position_table.size()+1)/2);
+            previous_west = 1;
+            previous_east = 0;
+            Serial.print("Octave: ");
+            Serial.println(octave);
+            return;
+        }
+        else{
+            // MIDDLE KEYBOARD
+            previous_west = 1;
+            previous_east = 1;
+        }
     }
-    vTaskDelete(reorganizeHandle);
-}
+    // LISTEN AFTER SEND MSG FOR OTHER KEYBOARD INFO   
 
     
+    while (xQueueReceive(msgInQ, localRX_Message, 0) == pdTRUE){
+        
+        uint8_t first_message_bit = localRX_Message[0];
+        if (first_message_bit == 'L'){
+            Serial.println("received");
+            position_table[localRX_Message[2]] = localRX_Message[1]; 
+        }
+        else if (first_message_bit == 'E'){
+            for (uint8_t i = 5; i < 7; i++){
+                setRow(i);
+                digitalWrite(OUT_PIN, true); //output handshake signal
+                delayMicroseconds(3);
+            }   
+            octave = 4+(position_table[ownID]-(position_table.size()+1)/2);
+            
+            Serial.print("Octave: ");
+            Serial.println(octave);
+            return;
+        }
+    }
+    Serial.print("Octave: ");
+    Serial.println(octave);
+
+    delayMicroseconds(100000000);
+}

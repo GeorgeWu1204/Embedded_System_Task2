@@ -93,10 +93,9 @@ const int32_t tableSizes_sub1 [] = {
 };
 
 extern std::map<uint8_t, std::vector<uint16_t> > sound_table; 
-extern std::map<uint8_t, uint8_t> position_table;
-extern volatile bool reorganising;
-extern volatile bool previous_west;
-extern volatile bool previous_east;
+
+extern bool previous_west;
+extern bool previous_east;
 
 //setup function
 void setPinDirections();

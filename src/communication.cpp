@@ -19,22 +19,9 @@ void decodeTask(void *pvParameters){
         
         uint8_t first_message_bit = localRX_Message[0];
         if (first_message_bit == 'S'){
-            reorganising = true;
-            // Create the child task (reorganizePositions) and start it
-            TaskHandle_t reorganizeHandle;
-            xTaskCreate(reorganizePositions, "Reorganize Task", 256, NULL, 1, &reorganizeHandle);
-            // Wait for the child task to finish
-            vTaskDelete(reorganizeHandle);
-        }
-        else if (first_message_bit == 'L'){
-            Serial.println("received");
-            position_table[localRX_Message[2]] = localRX_Message[1]; 
-        }
-        else if (first_message_bit == 'E'){
-            outBits[5] = true;
-            outBits[6] = true;
-            octave = 4+(position_table[ownID]-(position_table.size()+1)/2);
-            reorganising = false;
+            vTaskSuspendAll();
+            reorganizePositions();
+            xTaskResumeAll();
         }
         else{
             uint8_t octave_number = localRX_Message[1];

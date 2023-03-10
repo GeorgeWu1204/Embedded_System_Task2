@@ -1,5 +1,5 @@
 # include "scan.h"
-
+# include "reorganize.h"
 
 Knob knob3;
 
@@ -91,42 +91,19 @@ void scanKeysTask(void *pvParameters)
     knob3.updateRotationValue(knob3_current_val);
     knob3Rotation = knob3.getRotationValue();
     std::copy(localkeyArray, localkeyArray + 7, previouslocalkeyArray); 
-    
-    bool position_change_detected = false;
-    if (reorganising == false){
-      
-      if (position_table.empty()) {
-        Serial.println("hihi");
-        previous_west = !((localkeyArray[5] >> 3) & 1);
-        previous_east = !((localkeyArray[6] >> 3) & 1);
-        Serial.println(previous_west);
-        Serial.println(previous_east);
-      }
-      bool current_west = !((localkeyArray[5] >> 3) & 1);
-      bool current_east = !((localkeyArray[6] >> 3) & 1);
-      // Serial.println((previous_west != current_west));
-      // Serial.println((previous_east != current_east));
-      // Serial.println((previous_west != current_west) || (previous_east != current_east));
-      if ((previous_west != current_west) || (previous_east != current_east)){
-        position_change_detected = true;
-        previous_west = current_west;
-        previous_east = current_east;
-      }
-      if (position_change_detected){
-        Serial.println("send message");
-        sendHandshakeMessage('S',0, 0);
-      }
-      // call Reorganise when on the first run (position_table is empty)
-      if (position_table.empty() || position_change_detected){
-        // Create the child task (reorganizePositions) and start it
-        reorganising = true;
-        
-        xTaskCreate(reorganizePositions, "Reorganize Task", 256, NULL, 4, &reorganizeHandle);
-        // Wait for the child task to finish
-      }
+
+
+    bool current_west = !((localkeyArray[5] >> 3) & 1);
+    bool current_east = !((localkeyArray[6] >> 3) & 1);
+    // Serial.println("current");
+    // Serial.println(current_west);
+    // Serial.println(current_east);
+    if ((previous_west != current_west) || (previous_east != current_east)){
+      sendHandshakeMessage('S',0,0);
+      vTaskSuspendAll();
+      reorganizePositions();
+      xTaskResumeAll();
     }
-
-
     #ifdef TEST_SCANKEYS
     break;
     #endif

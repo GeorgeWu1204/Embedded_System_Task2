@@ -79,15 +79,13 @@ uint32_t local_timestep [12] = {
 volatile uint16_t global_keyArray_concated;
 
 std::map<uint8_t, std::vector<uint16_t> > sound_table; 
-std::map<uint8_t, uint8_t> position_table;
-volatile bool reorganising = false;
-volatile bool previous_west;
-volatile bool previous_east;
-TaskHandle_t reorganizeHandle;
-uint8_t ownID;
 
 volatile bool outBits[8] = {false,false,false,true,true,true,true};
 
+bool previous_west;
+bool previous_east;
+
+uint8_t ownID;
 
 void setPinDirections(){
   pinMode(RA0_PIN, OUTPUT);

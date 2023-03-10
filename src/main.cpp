@@ -50,6 +50,7 @@ void sampleISR() {
 void setup()
 {
   // Set pin directions
+  // Serial.println("setup");
   setPinDirections();
 
   // Initialise display
@@ -57,7 +58,7 @@ void setup()
 
   // Initialise UART
   Serial.begin(9600);
-
+  Serial.println("setup");
   // set own ID (used for ordering)
   ownID = getHashedID();
 
@@ -69,72 +70,48 @@ void setup()
   sampleBufferSemaphore = xSemaphoreCreateBinary();
   xSemaphoreGive(sampleBufferSemaphore);
   
-  # ifndef DISABLE_THREADS
-  // Initialise SampleISR
-  TIM_TypeDef *Instance = TIM1;
-  HardwareTimer *sampleTimer = new HardwareTimer(Instance);
-  sampleTimer->setOverflow(22000, HERTZ_FORMAT);
-  sampleTimer->attachInterrupt(sampleISR);
-  sampleTimer->resume();
-  # endif
   
   // initialise lookuptable
   // centralOctaveLookUpTable.initializeTable();
   // initialise communication
   initializeCAN();
-  initialize_table();
-  // Initialize threading scanKeysTask
 
   # ifndef DISABLE_THREADS
-  TaskHandle_t scanKeysHandle = NULL;
-  TaskHandle_t displayHandle = NULL;
-  TaskHandle_t write_to_double = NULL;
-  xTaskCreate(
-      scanKeysTask,     /* Function that implements the task */
-      "scanKeys",       /* Text name for the task */
-      64,               /* Stack size in words, not bytes */
-      NULL,             /* Parameter passed into the task */
-      5,                /* Task priority */
-      &scanKeysHandle); /* Pointer to store the task handle */
-  
-  // Initialize threading displayUpdateTask
-  xTaskCreate(
-      displayUpdateTask, /* Function that implements the task */
-      "display",         /* Text name for the task */
-      256,               /* Stack size in words, not bytes */
-      NULL,              /* Parameter passed into the task */
-      1,                 /* Task priority */
-      &displayHandle);   /* Pointer to store the task handle */
-  
-  // Initialize threading decodeTask
-  TaskHandle_t decodeHandle = NULL;
-  xTaskCreate(
-      decodeTask, /* Function that implements the task */
-      "decode",         /* Text name for the task */
-      256,               /* Stack size in words, not bytes */
-      NULL,              /* Parameter passed into the task */
-      2,                 /* Task priority */
-      &decodeHandle);   /* Pointer to store the task handle */
+  reorganizePositions();
 
-  // Initialize threading transmitTask
-  TaskHandle_t transmitHandle = NULL;
-  xTaskCreate(
-      CAN_TX_Task , /* Function that implements the task */
-      "transmit",         /* Text name for the task */
-      256,               /* Stack size in words, not bytes */
-      NULL,              /* Parameter passed into the task */
-      3,                 /* Task priority */
-      &transmitHandle);   /* Pointer to store the task handle */
-  xTaskCreate(
-    write_to_double_buffer,		    /* Function that implements the task */
-    "write_to_buffer",		      /* Text name for the task */
-    64,      		        /* Stack size in words, not bytes */
-    NULL,			          /* Parameter passed into the task */
-    5,			            /* Task priority */
-    &write_to_double);  /* Pointer to store the task handle */
+  Serial.println("Finish Reorganize");
+  
+  // initialize_table();
+  // // Initialise SampleISR
+  // TIM_TypeDef *Instance = TIM1;
+  // HardwareTimer *sampleTimer = new HardwareTimer(Instance);
+  // sampleTimer->setOverflow(22000, HERTZ_FORMAT);
+  // sampleTimer->attachInterrupt(sampleISR);
+  // sampleTimer->resume();
 
-  // Start RTOS scheduler
-  vTaskStartScheduler();
+  // // Initialise Scan key
+
+  // TaskHandle_t scanKeysHandle = NULL;
+  // xTaskCreate(scanKeysTask, "scanKeys", 64, NULL, 5, &scanKeysHandle); 
+  
+  // // Initialize threading displayUpdateTask
+  // TaskHandle_t displayHandle = NULL;
+  // xTaskCreate(displayUpdateTask, "display", 256, NULL, 1, &displayHandle);   
+  
+  // // Initialize threading decodeTask
+  // TaskHandle_t decodeHandle = NULL;
+  // xTaskCreate(decodeTask, "decode", 256, NULL, 2, &decodeHandle);   
+
+  // // Initialize threading transmitTask
+  // TaskHandle_t transmitHandle = NULL;
+  // xTaskCreate(CAN_TX_Task, "transmit", 256, NULL, 3, &transmitHandle); 
+
+  // // Initialize threading writeToBuffer
+  // TaskHandle_t write_to_double = NULL; 
+  // xTaskCreate( write_to_double_buffer, "write_to_buffer", 64, NULL, 5, &write_to_double); 
+
+  // // Start RTOS scheduler
+  // vTaskStartScheduler();
   #endif
 
   
