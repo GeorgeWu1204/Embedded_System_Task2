@@ -19,10 +19,21 @@ void decodeTask(void *pvParameters){
         
         uint8_t first_message_bit = localRX_Message[0];
         if (first_message_bit == 'S'){
-            vTaskSuspendAll();
-            reorganizePositions();
-            xTaskResumeAll();
+            Serial.println("received s");
+            if (configFlag == false){
+                configFlag = true;
+            }
         }
+        else if (first_message_bit == 'L'){
+            Serial.println("received L");
+            positionTable[localRX_Message[1]] = localRX_Message[2];
+        }
+        else if (first_message_bit == 'E'){
+            Serial.println("received E");
+            // configFlag = false;
+            endConfigFlag = true;
+        }
+
         else{
             uint8_t octave_number = localRX_Message[1];
             uint8_t note_number = localRX_Message[2];
@@ -50,7 +61,6 @@ void CAN_TX_Task (void * pvParameters) {
 	uint8_t msgOut[8];
 	while (1) {
 	    xQueueReceive(msgOutQ, msgOut, portMAX_DELAY);
-
 		xSemaphoreTake(CAN_TX_Semaphore, portMAX_DELAY);
 		CAN_TX(0x123, msgOut);
         xSemaphoreGive(CAN_TX_Semaphore);
@@ -60,32 +70,37 @@ void CAN_TX_Task (void * pvParameters) {
 	}
 }
 
-void sendMessage(int8_t index, bool press){
-    if (press){
-        // pressed
-        TX_Message[0] = 'P';
-        TX_Message[1] = __atomic_load_n(&octave,__ATOMIC_RELAXED);
-        TX_Message[2] = index;
-    }
-    else{
-        // released
-        TX_Message[0] = 'R';
-        TX_Message[1] = __atomic_load_n(&octave,__ATOMIC_RELAXED);
-        TX_Message[2] = index;
-    }
+void sendMessage(uint8_t msg0, uint8_t msg1, uint8_t msg2){
+    TX_Message[0] = msg0;
+    TX_Message[1] = msg1;
+    TX_Message[2] = msg2;
     xQueueSend( msgOutQ, TX_Message, portMAX_DELAY);
+    Serial.println("sent!");
     std::copy(TX_Message, TX_Message + 8, globalTX_Message); 
-} 
+}
 
-
-
+// void sendMessage(int8_t index, bool press){
+//     if (press){
+//         // pressed
+//         TX_Message[0] = 'P';
+//         TX_Message[1] = __atomic_load_n(&octave,__ATOMIC_RELAXED);
+//         TX_Message[2] = index;
+//     }
+//     else{
+//         // released
+//         TX_Message[0] = 'R';
+//         TX_Message[1] = __atomic_load_n(&octave,__ATOMIC_RELAXED);
+//         TX_Message[2] = index;
+//     }
+//     xQueueSend( msgOutQ, TX_Message, portMAX_DELAY);
+//     std::copy(TX_Message, TX_Message + 8, globalTX_Message); 
+// }
 
 
 void CAN_RX_ISR(void) {
 	uint8_t RX_Message_ISR[8];
 	uint32_t ID;
 	CAN_RX(ID, RX_Message_ISR);
-    // Serial.println(RX_Message_ISR[0]);
 	xQueueSendFromISR(msgInQ, RX_Message_ISR, NULL);
 }
 

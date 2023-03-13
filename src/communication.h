@@ -8,7 +8,7 @@
 #define COMMUNICATION_H
 
 void decodeTask(void *pvParameters);
-void sendMessage(int8_t index, bool press);
+void sendMessage(uint8_t msg0, uint8_t msg1, uint8_t msg2);
 void initializeCAN();
 void CAN_TX_Task (void * pvParameters);
 

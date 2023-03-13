@@ -48,7 +48,7 @@ const int32_t stepSizes[12] = {
 
 const char * Key_set[13] = {"Not Pressed", "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
 
-volatile uint8_t octave;
+volatile uint8_t octave = 0;
 
 volatile int8_t knob3Rotation = 0;
 volatile uint8_t keyArray[7] = {0};
@@ -82,10 +82,16 @@ std::map<uint8_t, std::vector<uint16_t> > sound_table;
 
 volatile bool outBits[8] = {false,false,false,true,true,true,true};
 
-bool previous_west;
-bool previous_east;
+volatile uint8_t previous_west;
+volatile uint8_t previous_east;
 
 uint8_t ownID;
+uint8_t position = 0;
+
+volatile bool configFlag = true;
+volatile bool endConfigFlag = false;
+
+std::map<uint8_t, uint8_t> positionTable;
 
 void setPinDirections(){
   pinMode(RA0_PIN, OUTPUT);
@@ -104,3 +110,5 @@ void setPinDirections(){
   pinMode(JOYX_PIN, INPUT);
   pinMode(JOYY_PIN, INPUT);
 }
+
+

@@ -9,5 +9,5 @@
 void setRow(uint8_t rowIdx);
 void scanKeysTask(void *pvParameters);
 uint8_t readCols();
-// void *pvParameters
+
 #endif

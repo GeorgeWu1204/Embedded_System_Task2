@@ -61,6 +61,7 @@ void setup()
   Serial.println("setup");
   // set own ID (used for ordering)
   ownID = getHashedID();
+  Serial.println(ownID);
 
   // Initialise mutex
   keyArrayMutex = xSemaphoreCreateMutex();
@@ -77,41 +78,44 @@ void setup()
   initializeCAN();
 
   # ifndef DISABLE_THREADS
-  reorganizePositions();
 
-  Serial.println("Finish Reorganize");
+  initialize_table();
+  // Initialise SampleISR
+  TIM_TypeDef *Instance = TIM1;
+  HardwareTimer *sampleTimer = new HardwareTimer(Instance);
+  sampleTimer->setOverflow(22000, HERTZ_FORMAT);
+  sampleTimer->attachInterrupt(sampleISR);
+  sampleTimer->resume();
+
+  // Initialise Scan key
+  Serial.print("in setup: ");
+  Serial.println(configFlag);
+
+  TaskHandle_t scanKeysHandle = NULL;
+  xTaskCreate(scanKeysTask, "scanKeys", 256, NULL, 6, &scanKeysHandle); 
   
-  // initialize_table();
-  // // Initialise SampleISR
-  // TIM_TypeDef *Instance = TIM1;
-  // HardwareTimer *sampleTimer = new HardwareTimer(Instance);
-  // sampleTimer->setOverflow(22000, HERTZ_FORMAT);
-  // sampleTimer->attachInterrupt(sampleISR);
-  // sampleTimer->resume();
-
-  // // Initialise Scan key
-
-  // TaskHandle_t scanKeysHandle = NULL;
-  // xTaskCreate(scanKeysTask, "scanKeys", 64, NULL, 5, &scanKeysHandle); 
+  // Initialize threading displayUpdateTask
+  TaskHandle_t displayHandle = NULL;
+  xTaskCreate(displayUpdateTask, "display", 256, NULL, 1, &displayHandle);   
   
-  // // Initialize threading displayUpdateTask
-  // TaskHandle_t displayHandle = NULL;
-  // xTaskCreate(displayUpdateTask, "display", 256, NULL, 1, &displayHandle);   
+  // Initialize threading decodeTask
+  TaskHandle_t decodeHandle = NULL;
+  xTaskCreate(decodeTask, "decode", 256, NULL, 4, &decodeHandle);   
+
+  // Initialize threading transmitTask
+  TaskHandle_t transmitHandle = NULL;
+  xTaskCreate(CAN_TX_Task, "transmit", 256, NULL, 3, &transmitHandle); 
+
+  // Initialize threading writeToBuffer
+  TaskHandle_t writeToDoubleHandle = NULL; 
+  xTaskCreate( write_to_double_buffer, "write_to_buffer", 64, NULL, 5, &writeToDoubleHandle); 
+
+  TaskHandle_t configHandle = NULL;
+	xTaskCreate(configTask,	"config",	64, NULL,	2, &configHandle);	
+
+  // Start RTOS scheduler
+  vTaskStartScheduler();
   
-  // // Initialize threading decodeTask
-  // TaskHandle_t decodeHandle = NULL;
-  // xTaskCreate(decodeTask, "decode", 256, NULL, 2, &decodeHandle);   
-
-  // // Initialize threading transmitTask
-  // TaskHandle_t transmitHandle = NULL;
-  // xTaskCreate(CAN_TX_Task, "transmit", 256, NULL, 3, &transmitHandle); 
-
-  // // Initialize threading writeToBuffer
-  // TaskHandle_t write_to_double = NULL; 
-  // xTaskCreate( write_to_double_buffer, "write_to_buffer", 64, NULL, 5, &write_to_double); 
-
-  // // Start RTOS scheduler
-  // vTaskStartScheduler();
   #endif
 
   

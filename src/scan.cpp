@@ -22,7 +22,27 @@ void setRow(uint8_t rowIdx)
   digitalWrite(REN_PIN, HIGH);
 }
 
-
+// uint8_t checkDiff(uint8_t localkeyArray[7],  uint8_t previouslocalkeyArray[7]){
+//     Serial.println((previouslocalkeyArray[5] >> 3) & 1);
+//     Serial.println(previouslocalkeyArray[6]);
+//     bool current_west = !((localkeyArray[5] >> 3) & 1);
+//     bool current_east = !((localkeyArray[6] >> 3) & 1);
+//     bool previous_west = !((previouslocalkeyArray[5] >> 3) & 1);
+//     bool previous_east = !((previouslocalkeyArray[6] >> 3) & 1);
+//     // Serial.println("current");
+//     // Serial.println(current_west);
+//     // Serial.println(current_east);
+//     // Serial.println("previous");
+//     // Serial.println(previouslocalkeyArray[5]);
+//     // Serial.println(previouslocalkeyArray[6]);
+//     if ((previous_west != current_west) || (previous_east != current_east)){
+//       Serial.println("Found difference");
+//       return 1;
+//     }
+//     else{
+//       return 0;
+//     }
+// }
 
 void scanKeysTask(void *pvParameters)
 {
@@ -31,7 +51,7 @@ void scanKeysTask(void *pvParameters)
   TickType_t xLastWakeTime = xTaskGetTickCount();
   // xLastWakeTime will store the time (tick count) of the last initiation.
   uint8_t knob3_current_val;
-  uint8_t localkeyArray[7];
+  uint8_t localkeyArray[7] = {0,0,0,0,0,0,0};
   uint8_t previouslocalkeyArray[7];
   uint32_t previous_keys = 0;
   uint32_t current_keys;
@@ -39,8 +59,12 @@ void scanKeysTask(void *pvParameters)
   uint32_t xor_keys;
   uint8_t local_octave;
   bool pressed;
+  uint8_t count = 0;
 
   std::vector<uint16_t> local_pressed_keys;
+
+
+  // sendMessage('S',0,0);
 
   while (1) {
     # ifndef TEST_SCANKEYS
@@ -57,9 +81,14 @@ void scanKeysTask(void *pvParameters)
     std::copy(localkeyArray,localkeyArray+7,keyArray);
     xSemaphoreGive(keyArrayMutex);
 
+    if (count == 0){
+      std::copy(localkeyArray,localkeyArray+7,previouslocalkeyArray);
+      count += 1;
+    }
     /// send message if any key changed
     current_keys = localkeyArray[2] << 8 | localkeyArray[1] << 4 | localkeyArray[0];
     previous_keys = previouslocalkeyArray[2] << 8 | previouslocalkeyArray[1] << 4 | previouslocalkeyArray[0];
+    
     xor_keys = current_keys ^ previous_keys;
     // for sound output
     # ifdef TEST_SCANKEYS
@@ -71,10 +100,18 @@ void scanKeysTask(void *pvParameters)
     
     if ((xor_keys) != 0){
       local_octave = __atomic_load_n(&octave, __ATOMIC_RELAXED);
-      for (int i = 0; i < 12; i++){
+      for (uint8_t i = 0; i < 12; i++){
         if ((xor_keys & 1) == 1){
           pressed = (current_keys_shifted & 1);
-          sendMessage(i, pressed);
+
+          uint8_t local_octave =  __atomic_load_n(&octave,__ATOMIC_RELAXED);
+          // if (pressed){
+          //   sendMessage('P', local_octave, i);
+          // }
+          // else{
+          //   sendMessage('R', local_octave, i);
+          // }
+          
           modified_soundMap(local_octave, i, pressed);
         }
         xor_keys = xor_keys >> 1;
@@ -90,20 +127,43 @@ void scanKeysTask(void *pvParameters)
     knob3_current_val = localkeyArray[3] & 3 ;
     knob3.updateRotationValue(knob3_current_val);
     knob3Rotation = knob3.getRotationValue();
-    std::copy(localkeyArray, localkeyArray + 7, previouslocalkeyArray); 
-
-
-    bool current_west = !((localkeyArray[5] >> 3) & 1);
-    bool current_east = !((localkeyArray[6] >> 3) & 1);
-    // Serial.println("current");
-    // Serial.println(current_west);
-    // Serial.println(current_east);
-    if ((previous_west != current_west) || (previous_east != current_east)){
-      sendHandshakeMessage('S',0,0);
-      vTaskSuspendAll();
-      reorganizePositions();
-      xTaskResumeAll();
+    
+    if (count == 0){
+      previous_west = !(previouslocalkeyArray[5] >> 3);
+      previous_east = !(previouslocalkeyArray[6] >> 3);
+      count += 1;
     }
+
+    if (configFlag == false){
+      // Serial.println("==0");
+      // Serial.println(previouslocalkeyArray[5]);
+      // Serial.println(previouslocalkeyArray[5] >> 3);
+      uint8_t current_west = !(localkeyArray[5] >> 3);
+      uint8_t current_east = !(localkeyArray[6] >> 3);
+      
+      // Serial.println("current");
+      // Serial.println(current_west);
+      // Serial.println(current_east);
+      // Serial.println("previous");
+      // Serial.println(previouslocalkeyArray[5]);
+      // Serial.println(previouslocalkeyArray[6]);
+      // Serial.println(current_west);
+      // Serial.println(current_east);
+      // Serial.println("previous");
+      // Serial.println(previous_west);
+      // Serial.println(previous_east);
+ 
+      if ((previous_west != current_west) || (previous_east != current_east)){
+        Serial.println("Found difference");
+        // Serial.println("cahnge detecte");
+        // delayMicroseconds(100); 
+        sendMessage('S',0,0);
+        Serial.println("S sent");
+        configFlag = true;
+      }
+      
+    }
+    // std::copy(localkeyArray, localkeyArray + 7, previouslocalkeyArray); 
     #ifdef TEST_SCANKEYS
     break;
     #endif

@@ -73,8 +73,8 @@ extern uint8_t sampleBuffer0[SAMPLE_BUFFER_SIZE];
 extern uint8_t sampleBuffer1[SAMPLE_BUFFER_SIZE];
 extern volatile bool writeBuffer1;
 extern volatile bool outBits[8];
-extern TaskHandle_t reorganizeHandle;
 extern uint8_t ownID;
+extern uint8_t position;
 
 const int32_t tableSizes_sub1 [] = { 
      // we have to know the size at comile time.
@@ -94,16 +94,15 @@ const int32_t tableSizes_sub1 [] = {
 
 extern std::map<uint8_t, std::vector<uint16_t> > sound_table; 
 
-extern bool previous_west;
-extern bool previous_east;
+extern volatile uint8_t previous_west;
+extern volatile uint8_t previous_east;
+
+extern volatile bool configFlag;
+extern volatile bool endConfigFlag;
+
+extern std::map<uint8_t, uint8_t> positionTable;
 
 //setup function
 void setPinDirections();
-
-
-
-
-
-
 
 #endif
