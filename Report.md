@@ -29,14 +29,14 @@
 
 ## Task Characterization
 
-| Task                | Task Description                        | Implementation Method | Theoretical Minimum Initiation Interval | Measured Maximum Execution Time |
-| ------------------- | --------------------------------------- | ------------------------------ |
-| scanKey             | 10 ms                                   | 5 ms                           |
-| decode              | 5 ms                                    | 2 ms                           |
-| display             | 15 ms                                   | 8 ms                           |
-| writeToDoubleBuffer | 20 ms                                   | 10 ms                          |
-| CAN_TX_Task         | 10 ms                                   | 6 ms                           |
-| configuration       | 10 ms                                   | 6 ms                           |
+| Task | Task Description| Implementation Method | Theoretical Minimum Initiation Interval | Measured Maximum Execution Time |
+| -----| ----------------|-----------------------|---------------------------------------- | ------------------------------- |
+| scanKey | | Thread  | | |
+| decode | | Thread  | | |
+| display | | Thread  | | |
+| writeToDoubleBuffer | | Thread  | | |
+| CAN_TX_Task | | Thread | | |    
+| configuration  | | Thread | | |
 
 ## Critical Instant Analysis of Rate Monotonic Scheduler
 
