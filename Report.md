@@ -31,12 +31,15 @@
 
 | Task | Task Description| Implementation Method | Theoretical Minimum Initiation Interval | Measured Maximum Execution Time |
 | -----| ----------------|-----------------------|---------------------------------------- | ------------------------------- |
-| scanKey | | Thread  | | |
-| decode | | Thread  | | |
-| display | | Thread  | | |
+| scanKey | Identifies the keys pressed | Thread  | | |
+| decode | Decode the received message from the msgInQ | Thread  | | |
+| display | Display the information on the LED screen | Thread  | | |
 | writeToDoubleBuffer | | Thread  | | |
-| CAN_TX_Task | | Thread | | |    
-| configuration  | | Thread | | |
+| CAN_TX_Task | Push the message that is going to be sent into msgOutQ| Thread | | |    
+| configuration  | Locate the position of the keyboard | Thread | | |
+| sampleISR | | Interrupt |||
+| CAN_RX_ISR | Receive message from CAN bus and put inside msgInQ| Interrupt |||
+| CAN_TX_ISR | Push the message from msgOutQ onto the CAN bus| Interrupt |||
 
 ## Critical Instant Analysis of Rate Monotonic Scheduler
 
