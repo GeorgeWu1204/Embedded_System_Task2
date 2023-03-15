@@ -17,20 +17,10 @@
 
 # System Task Analysis
 
-## Task Identification
+## Task Identification and Characterization
 
-| Task ID | Task Description | Implementation Method |
-| ------ | ---------------- | --------------------- |
-| 1      | Task A           | Interrupt              |
-| 2      | Task B           | Thread                 |
-| 3      | Task C           | Interrupt              |
-| 4      | Task D           | Thread                 |
-| 5      | Task E           | Interrupt              |
-
-## Task Characterization
-
-| Task | Task Description| Implementation Method | Theoretical Minimum Initiation Interval | Measured Maximum Execution Time |
-| -----| ----------------|-----------------------|---------------------------------------- | ------------------------------- |
+| Task | Task Description | Implementation Method | Theoretical Minimum Initiation Interval | Measured Maximum Execution Time |
+| -----| -----------------|-----------------------|---------------------------------------- | ------------------------------- |
 | scanKey | Identifies the keys pressed | Thread  | | |
 | decode | Decode the received message from the msgInQ | Thread  | | |
 | display | Display the information on the LED screen | Thread  | | |
