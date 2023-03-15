@@ -22,6 +22,7 @@
 | Task | Task Description | Implementation Method | Theoretical Minimum Initiation Interval | Measured Maximum Execution Time |
 | -----| -----------------|-----------------------|---------------------------------------- | ------------------------------- |
 | scanKey | Identifies the keys pressed | Thread  | | |
+| joystick detect | detecting the moving direction of joystick | Thread | | |
 | decode | Decode the received message from the msgInQ | Thread  | | |
 | display | Display the information on the LED screen | Thread  | | |
 | writeToDoubleBuffer | | Thread  | | |
