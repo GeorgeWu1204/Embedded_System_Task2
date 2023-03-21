@@ -21,7 +21,7 @@
 
 | Task | Task Description | Implementation Method | Theoretical Minimum Initiation Interval | Measured Maximum Execution Time |
 | -----| -----------------|-----------------------|---------------------------------------- | ------------------------------- |
-| scanKey | Identifies the keys pressed | Thread  | | |
+| scanKey | Identifies the keys pressed | Thread  | | 210 µs|
 | joystick detect | detecting the moving direction of joystick | Thread | | |
 | decode | Decode the received message from the msgInQ | Thread  | | |
 | display | Display the information on the LED screen | Thread  | | |
@@ -31,6 +31,12 @@
 | sampleISR | | Interrupt |||
 | CAN_RX_ISR | Receive message from CAN bus and put inside msgInQ| Interrupt |||
 | CAN_TX_ISR | Push the message from msgOutQ onto the CAN bus| Interrupt |||
+
+
+## Notes
+- adding joystick code to scankey task would increase single run time from 0.21ms to 0.37ms (mainly due to 'analogRead' in Joystick code), hence make a separate task for it
+
+
 
 ## Critical Instant Analysis of Rate Monotonic Scheduler
 
