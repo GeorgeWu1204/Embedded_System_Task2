@@ -25,19 +25,17 @@
 | joystick detect | detecting the moving direction of joystick | Thread | | 0.16 ms |
 | decode | Decode the received message from the msgInQ | Thread  | | 0.1892 ms |
 | display | Display the information on the LED screen | Thread  | | 18.01 ms |
-| writeToDoubleBuffer | | Thread  | | |
+| writeToDoubleBuffer | | Thread  | | 9.2165 ms |
 | CAN_TX_Task | Push the message that is going to be sent into msgOutQ| Thread | | 0.9603 ms|    
 | configuration  | Locate the position of the keyboard | Thread | | 1000.04 ms |
 | sampleISR | | Interrupt || 0.00927 ms|
-| CAN_RX_ISR | Receive message from CAN bus and put inside msgInQ | Interrupt | | |
+| CAN_RX_ISR | Receive message from CAN bus and put inside msgInQ | Interrupt |  |  |
 | CAN_TX_ISR | Push the message from msgOutQ onto the CAN bus | Interrupt | | |
 
 
 ## Notes
 - adding joystick code to scankey task would increase single run time from 0.21ms to 0.37ms (mainly due to 'analogRead' in Joystick code), hence make a separate task for it
 - for decode task, the max exec time 0.1892 ms is obtained by only using 'R' messages. If only use 'P' messages, the time would be 0.1768 ms
-- 
-
 
 
 ## Critical Instant Analysis of Rate Monotonic Scheduler
