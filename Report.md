@@ -21,10 +21,10 @@
 
 | Task | Task Description | Implementation Method | Theoretical Minimum Initiation Interval | Measured Maximum Execution Time |
 | -----| -----------------|-----------------------|---------------------------------------- | ------------------------------- |
-| scanKey | Identifies the keys pressed | Thread  | | 210 µs|
-| joystick detect | detecting the moving direction of joystick | Thread | | |
-| decode | Decode the received message from the msgInQ | Thread  | | |
-| display | Display the information on the LED screen | Thread  | | |
+| scanKey | Identifies the keys pressed | Thread  | | 0.21 ms|
+| joystick detect | detecting the moving direction of joystick | Thread | | 0.16 ms |
+| decode | Decode the received message from the msgInQ | Thread  | | 0.1892 ms |
+| display | Display the information on the LED screen | Thread  | | 18.01 ms |
 | writeToDoubleBuffer | | Thread  | | |
 | CAN_TX_Task | Push the message that is going to be sent into msgOutQ| Thread | | |    
 | configuration  | Locate the position of the keyboard | Thread | | |
@@ -35,6 +35,7 @@
 
 ## Notes
 - adding joystick code to scankey task would increase single run time from 0.21ms to 0.37ms (mainly due to 'analogRead' in Joystick code), hence make a separate task for it
+- for decode task, the max exec time 0.1892 ms is obtained by only using 'R' messages. If only use 'P' messages, the time would be 0.1768 ms
 
 
 
