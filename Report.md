@@ -7,7 +7,18 @@
 
 ## Data and Resource Sharing
 <!-- 20. An identification of all the shared data structures and the methods used to guarantee safe accessand synchronisation -->
-
+| Variable | Method | scanKey | joystick detect |  decode |
+| -----| -----------|-------|----------------- | --------------- |
+<!-- | scanKey | Identifies the keys pressed | Thread  | | 0.21 ms|
+| joystick detect | detecting the moving direction of joystick | Thread | | 0.16 ms |
+| decode | Decode the received message from the msgInQ | Thread  | | 0.1892 ms |
+| display | Display the information on the LED screen | Thread  | | 18.01 ms |
+| writeToDoubleBuffer | | Thread  | | 9.2165 ms |
+| CAN_TX_Task | Push the message that is going to be sent into msgOutQ| Thread | | 0.9603 ms|    
+| configuration  | Locate the position of the keyboard | Thread | | 1000.04 ms |
+| sampleISR | | Interrupt || 0.00927 ms|
+| CAN_RX_ISR | Receive message from CAN bus and put inside msgInQ | Interrupt |  |  |
+| CAN_TX_ISR | Push the message from msgOutQ onto the CAN bus | Interrupt | | | -->
 ## Dependency
 <!-- 21. An analysis of inter-task blocking dependencies that shows any possibility of deadlock -->
 
