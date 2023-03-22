@@ -6,7 +6,12 @@
 18. A critical instant analysis of the rate monotonic scheduler, showing that all deadlines are met under worst-case conditions  -->
 
 ## Data and Resource Sharing
-<!-- 20. An identification of all the shared data structures and the methods used to guarantee safe accessand synchronisation -->
+<!-- 20. An identification of all the shared data structures and the methods used to guarantee safe access synchronisation -->
+
+|Variable | Shared data structure | Access Threads | Synchronisation Method |
+|---------|-----------------------| -------------- | --------------|
+| KeyArray|    Array [7]   | Display & scanKey & CAN_TX_Task | Semaphore |
+
 
 ## Dependency
 <!-- 21. An analysis of inter-task blocking dependencies that shows any possibility of deadlock -->
