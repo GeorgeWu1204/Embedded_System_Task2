@@ -105,7 +105,7 @@ It can be observed that the `writeToDoubleBuffer()` function utilizes the most C
 ## Inter-task blocking dependencies
 <!-- 21. An analysis of inter-task blocking dependencies that shows any possibility of deadlock -->
 
-![Task Dependency](/Task_dependency.png "Task Dependency")
+![Task Dependency](Task_dependency.png "Task Dependency")
 
 | Semaphore | Type | Access Tasks and Interrupt |
 |-----------|------|----------------------------|
@@ -117,11 +117,6 @@ It can be observed that the `writeToDoubleBuffer()` function utilizes the most C
 
 In our code, there are two tasks, scanKey() and configuration(), which use two locks - westeastArrayMutex and critical_section_mutex. Deadlock can only happen when both tasks share these two locks together. However, since westeastArrayMutex only locks the localwesteastArray resource and no other resource gets locked, and critical_section_mutex does not need to access localwesteastArray to complete the lock, there is no possible deadlock case in our code.
 
-
-
-
-
-## Advanced Feature
 
 
 
