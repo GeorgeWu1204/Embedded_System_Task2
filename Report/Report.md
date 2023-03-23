@@ -59,7 +59,7 @@ Where $\tau_n$ is the initiation interval for the worst case. According to the c
 The overall run time statistics for different tasks is recorded by `vTaskGetRunTimeStats()` function. The result is shown in the following table.
 | Task | CPU Utilization |
 |------|-----------------|
-|`scanKey()` | <center>$\lt 1\%$ |
+|`scanKey()` | <center>$\lt 1%$ |
 | `joystick()` | <center> $1.5\%$ |
 | `decode()` | <center> $\lt 1\%$ |
 | `display()` | <center> $16\%$ |
