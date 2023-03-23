@@ -93,8 +93,12 @@ It can be observed that the writeToDoubleBuffer function utilizes the most CPU. 
 
 ## Inter-task blocking dependencies
 <!-- 21. An analysis of inter-task blocking dependencies that shows any possibility of deadlock -->
+
+![Task Dependency](/Task_dependency.png "Task Dependency")
+
+
 1. The first identified blocking dependencies take place between the *CAN_TX_Task* and the *scanKey* Task. In the *scankey* task, the scanned value would be sent to the msgOutQ and the *CAN_TX_Task* would extract and send the content out. If the *scanKey* task runs faster than we expected in critical instant analysis, it is possible that the queue would soon be filled up before the content is sent. Hence, the *scanKey* task would stuck there and the deadlock would take place.
-2. 
+2. Another possible blocking dependencies take place at the double buffer part.
 
 
 
