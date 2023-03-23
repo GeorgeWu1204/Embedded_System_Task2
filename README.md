@@ -6,5 +6,10 @@
   
   [Lab Part 2](doc/LabPart2.md)
 
+# Report
+[Lab Report](Report/Report.md)
+
+
 ## Additional Information
   [Handshaking and auto-detection](doc/handshaking.md)
+
