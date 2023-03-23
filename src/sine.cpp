@@ -1,89 +1,141 @@
-#include "sine.h"
+#include <math.h>
+#include <Arduino.h>
+#include <U8g2lib.h>
+#include <vector>
+#include <STM32FreeRTOS.h>
+# define M_PI           3.14159265358979323846
 
-CentralOctaveLookUpTable centralOctaveLookUpTable;
+const int32_t tableSizes [] = { 
 
-uint16_t local_keyArray_concatenate;
-const uint8_t octave_freq[7] = {1, 2, 4, 8, 16, 32, 64};
-
-std::map<uint8_t, std::vector<uint16_t> > local_sound_table; 
-
-
-void initialize_table(){
-  centralOctaveLookUpTable.initializeTable(); 
-  Serial.println("intialize_table done");
-}
-
-
-
-int16_t calculate_vout(){
-  
-  int16_t tmp_vout = 0;
-  uint8_t count = 0;
-  uint8_t step_size = 0;
-  uint32_t tmp_key_index = 0;
-  std::vector<uint16_t> local_pressed_keys;
-  // local_keyArray_concatenate = __atomic_load_n(&global_keyArray_concated, __ATOMIC_RELAXED);
-  
-  // TODO: find a better method than copying
-  xSemaphoreTake(sound_tableMutex, portMAX_DELAY);
-  local_sound_table = sound_table;
-  xSemaphoreGive(sound_tableMutex);
-
-  // iterate map
-  for (auto it = local_sound_table.begin(); it != local_sound_table.end(); ++it) {
-    local_pressed_keys = it->second;
-    if (!local_pressed_keys.empty()){
-      step_size = octave_freq[it->first];
-      // iterate vector
-      for (int vec_index = 0; vec_index < local_pressed_keys.size(); vec_index ++){
-          tmp_key_index = local_pressed_keys[vec_index];
-          local_timestep[tmp_key_index] += step_size;
-          if(local_timestep[tmp_key_index] >= tableSizes[tmp_key_index]) local_timestep[tmp_key_index] = 0;
-          tmp_vout += centralOctaveLookUpTable.accessTable(tmp_key_index,local_timestep[tmp_key_index]);
-          count+=1;
-      }
-      // for(int i=0; i<12; i++){
-      //   if((local_keyArray_concatenate & 1) == 0){
-      //     local_timestep[i] += step_size;
-      //     if(local_timestep[i] >= tableSizes[i]) local_timestep[i] = 0;
-          
-      //     tmp_vout += centralOctaveLookUpTable.accessTable(i,local_timestep[i]);
-      //     count+=1;
-      // }
-      // local_keyArray_concatenate = local_keyArray_concatenate >> 1;
-    }
-
-  }
-  if(count == 0)
-    tmp_vout = 0; 
-  else 
-    tmp_vout = tmp_vout/count;
-  tmp_vout = tmp_vout >> (8 - knob3Rotation);
-  return tmp_vout;
-}
+    84,
+    79,
+    75,
+    71,
+    67,
+    63,
+    59,
+    56,
+    53,
+    50,
+    47,
+    45
+};
 
 
-void write_to_double_buffer(void *pvParameters){
+// ------------------------------------------------------------------------------
+class CentralOctaveLookUpTable{
+    private:
+    // There sizes have to be manually calculated. :(
 
-  while(1){
-	xSemaphoreTake(sampleBufferSemaphore, portMAX_DELAY);
-	for (uint32_t writeCtr = 0; writeCtr < SAMPLE_BUFFER_SIZE; writeCtr++) {
-		int16_t Vout = calculate_vout(); 
-		if(writeBuffer1){
-            sampleBuffer1[writeCtr] = Vout + 128;
-      // Serial.println(" ");
-      // Serial.print("buffer input");
-      // Serial.println( sampleBuffer1[writeCtr]);
-    }
-		else{
-			sampleBuffer0[writeCtr] = Vout + 128;
-      // Serial.println(sampleBuffer0[writeCtr]);
-    }
-	} 
-  }
-}
+    int32_t C[84];
+    int32_t C_sharp[79];
+    int32_t D[75];
+    int32_t D_sharp[71];
+    int32_t E[67];
+    int32_t F[63];
+    int32_t F_sharp[59];
+    int32_t G[56];
+    int32_t G_sharp[53];
+    int32_t A[50];
+    int32_t A_sharp[47];
+    int32_t B[45];
 
+    const int32_t baseHz[12] = { 
+        261,
+        277,
+        293,
+        311,
+        329,
+        349,
+        369,
+        391,
+        415,
+        440,
+        466,
+        493,
+    };
 
+    void sineTable(int32_t tableHz[], uint8_t keyIndex){
+            uint8_t tableSize = tableSizes[keyIndex];
+            for(int i=0; i<tableSize;i++){
+                tableHz[i] = 127*sin(2*M_PI*((baseHz[keyIndex])/22000.0)*i);
+            }
+        }
 
+    public:
 
+        void initializeTable(){
+            sineTable(C,0);
+            sineTable(C_sharp,1);
+            sineTable(D,2);
+            sineTable(D_sharp,3);
+            sineTable(E,4);
+            sineTable(F,5);
+            sineTable(F_sharp,6);
+            sineTable(G,7);
+            sineTable(G_sharp,8);
+            sineTable(A,9);
+            sineTable(A_sharp,10);
+            sineTable(B,11);
+        }
+
+        int32_t accessTable(uint32_t keyIndex, uint8_t timeStepIndex){
+            switch (keyIndex)
+            {
+                case(0):
+                    // timeStepIndex = timeStepIndex % 84;
+                  
+                    return C[timeStepIndex];
+                    break;
+                case(1):
+                    // timeStepIndex = timeStepIndex % 79;
+                    return C_sharp[timeStepIndex];
+                    break;
+                case(2):
+                    // timeStepIndex = timeStepIndex % 75;
+                    return D[timeStepIndex];
+                    break;
+                case(3):
+                    // timeStepIndex = timeStepIndex % 71;
+                    return D_sharp[timeStepIndex];
+                    break;
+                case(4):
+                    // timeStepIndex = timeStepIndex % 67;
+                    return E[timeStepIndex];
+                    break;
+                case(5):
+                    // timeStepIndex = timeStepIndex % 63;
+                    return F[timeStepIndex];
+                    break;
+                case(6):
+                    // timeStepIndex = timeStepIndex % 59;
+                    return F_sharp[timeStepIndex];
+                    break;
+                case(7):
+                    // timeStepIndex = timeStepIndex % 56;
+                    return G[timeStepIndex];
+                    break;
+                case(8):
+                    // timeStepIndex = timeStepIndex % 53;
+                    return G_sharp[timeStepIndex];
+                    break;
+                case(9):
+                    // timeStepIndex = timeStepIndex % 50;
+                    return A[timeStepIndex];
+                    break;
+                case(10):
+                    // timeStepIndex = timeStepIndex % 47;
+                    return A_sharp[timeStepIndex];
+                    break;
+                case(11):
+                    // timeStepIndex = timeStepIndex % 45;
+                    return B[timeStepIndex];
+                    break;
+                default:
+                    break;
+                }
+            return 0;
+        }
+
+};
 

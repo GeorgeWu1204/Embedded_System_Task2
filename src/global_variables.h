@@ -6,14 +6,31 @@
 #include <string>
 #include <map>
 #include <vector>
+#include "knob.h"
+#include <mutex>
+#include <thread>
 
+//---------------------------------TESTING PART------------------------------
 // test mode enable initialisation
 // #define DISABLE_THREADS
 // #define TEST_SCANKEYS
 // #define TEST_DISPLAY
-// # define TEST_DECODE
-// # define TEST_TRANSMIT
+// #define TEST_DECODE
+// #define TEST_TRANSMIT
+// #define TEST_CONFIG
+// #define TEST_JOYSTICK
+// #define TEST_SAMPLEISR
+// #define TEST_BUFFER
+// #define SAWTooth_selected
+// #define TEST_OVERALL
 
+// For test purpose Counters
+#ifdef TEST_OVERALL
+    extern uint8_t joystick_counter;
+    extern uint8_t write_to_double_buffer_counter;
+#endif
+
+//---------------------------------------------------------------------------
 
 #ifndef GLOBAL_VARIABLES_H
 #define GLOBAL_VARIABLES_H
@@ -51,49 +68,48 @@ extern const int HKOW_BIT;
 extern const int HKOE_BIT;
 
 // Global variables
-extern const int32_t stepSizes[12];
+extern const uint32_t stepSizes[12];
 extern const char *Key_set[13];
 extern volatile uint8_t octave;
 extern volatile int8_t knob3Rotation;
-extern volatile uint8_t keyArray[7];
-extern volatile uint8_t globalTX_Message[8];
-extern volatile uint8_t globalRX_Message[8];
+
+extern Knob knob1;
+extern volatile int8_t knob1Rotation;
+extern volatile int8_t prev_knob1Rotation;
 extern volatile QueueHandle_t msgInQ;
 extern volatile QueueHandle_t msgOutQ;
-extern SemaphoreHandle_t keyArrayMutex;
-extern SemaphoreHandle_t RX_MessageMutex;
-extern SemaphoreHandle_t CAN_TX_Semaphore;
-extern SemaphoreHandle_t sound_tableMutex;
 
+// extern SemaphoreHandle_t keyArrayMutex;
+extern SemaphoreHandle_t sound_tableMutex;
 extern SemaphoreHandle_t sampleBufferSemaphore;
+extern SemaphoreHandle_t westeastArrayMutex;
+extern SemaphoreHandle_t CAN_TX_Semaphore;
+
+
+
 extern volatile uint16_t global_keyArray_concated;
-extern uint32_t local_timestep [12];
-const uint8_t SAMPLE_BUFFER_SIZE = 128;
-extern uint8_t sampleBuffer0[SAMPLE_BUFFER_SIZE];
-extern uint8_t sampleBuffer1[SAMPLE_BUFFER_SIZE];
+
 extern volatile bool writeBuffer1;
 extern volatile bool outBits[8];
-extern uint8_t ownID;
-extern uint8_t position;
 
-const int32_t tableSizes_sub1 [] = { 
-     // we have to know the size at comile time.
-    83,
-    78,
-    74,
-    70,
-    66,
-    62,
-    58,
-    55,
-    52,
-    49,
-    46,
-    44
+
+
+//Activating part
+extern bool sawTooth_selected;
+extern float local_timestep [12];
+const uint16_t SAMPLE_BUFFER_SIZE = 800;
+extern uint8_t sampleBuffer0[SAMPLE_BUFFER_SIZE];
+extern uint8_t sampleBuffer1[SAMPLE_BUFFER_SIZE];
+
+struct Key {
+    uint8_t octave;
+    uint8_t key_index;
 };
 
-extern std::map<uint8_t, std::vector<uint16_t> > sound_table; 
+extern Key sound_table [12];
 
+// config
+extern uint8_t ownID;
 extern volatile uint8_t previous_west;
 extern volatile uint8_t previous_east;
 
@@ -101,6 +117,16 @@ extern volatile bool configFlag;
 extern volatile bool endConfigFlag;
 
 extern std::map<uint8_t, uint8_t> positionTable;
+extern volatile uint8_t westeastArray[2];
+extern bool single_board;
+// set receiver
+extern bool main_speaker;
+
+// mute
+extern bool mute;
+
+//critical section
+extern SemaphoreHandle_t critical_section_mutex;
 
 //setup function
 void setPinDirections();

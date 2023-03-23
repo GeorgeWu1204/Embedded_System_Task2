@@ -1,32 +1,20 @@
+#include <Arduino.h>
+#include <U8g2lib.h>
+#include <vector>
+#include <STM32FreeRTOS.h>
+
 #include "global_variables.h"
+#include "global_functions.h"
+// #include "communication.h"
+#include "sound.h"
 #include "display.h"
 #include "scan.h"
-#include "sine.h"
-#include "reorganize.h"
-// #include "sineLookUpTable.cpp"
+#include "config.h"
+#include "joystick.h"
 
-// sine lookup table
-// CentralOctaveLookUpTable centralOctaveLookUpTable;
-
-// void sampleISR()
-// {
-//   //static int32_t phaseAcc = 0;
-//   static int32_t sampleNumber = 0;
-//   sampleNumber += 1;
-//   if(sampleNumber>tableSizes[currentKey]){
-//     sampleNumber = 0;
-//   };
-//   int32_t Vout = centralOctaveLookUpTable.accessTable(currentKey,sampleNumber);
-//   // int32_t Vout = (phaseAcc >> 24) -128;
-//   Vout = Vout >> (8 - knob3Rotation);
-
-//   if((__atomic_load_n(&octave,__ATOMIC_RELAXED) == 4) && __atomic_load_n(&pressed,__ATOMIC_RELAXED)){
-//     analogWrite(OUTR_PIN, Vout + 128);
-//   }
-//   else{
-//     analogWrite(OUTR_PIN,0);
-//   }
-// }
+// Display Sound and scan key TODO
+  // volatile uint8_t element;
+  // DAC_HandleTypeDef hdac;
 
 void sampleISR() {
   static uint32_t readCtr = 0;
@@ -36,115 +24,98 @@ void sampleISR() {
     writeBuffer1 = !writeBuffer1;
     xSemaphoreGiveFromISR(sampleBufferSemaphore, NULL);
   }
-
-  if (writeBuffer1 && (__atomic_load_n(&octave,__ATOMIC_RELAXED) == 4) ){
+  if (writeBuffer1){
     analogWrite(OUTR_PIN, sampleBuffer0[readCtr++]);
   }
   else{
     analogWrite(OUTR_PIN, sampleBuffer1[readCtr++]);}
 }
 
+TIM_TypeDef *Instance = TIM1;
+HardwareTimer *sampleTimer = new HardwareTimer(Instance);
 
 
 
-void setup()
-{
-  // Set pin directions
-  // Serial.println("setup");
-  setPinDirections();
+void setup() {
 
-  // Initialise display
-  initialiseDisplay();
-
-  // Initialise UART
   Serial.begin(9600);
-  Serial.println("setup");
-  // set own ID (used for ordering)
+  setPinDirections();
+  initialiseDisplay();
   ownID = getHashedID();
-  Serial.println(ownID);
 
-  // Initialise mutex
-  keyArrayMutex = xSemaphoreCreateMutex();
+  // Declare Semaphore
   sound_tableMutex = xSemaphoreCreateMutex();
-  RX_MessageMutex = xSemaphoreCreateMutex();
-  CAN_TX_Semaphore = xSemaphoreCreateCounting(3,3);
+  westeastArrayMutex = xSemaphoreCreateMutex();
   sampleBufferSemaphore = xSemaphoreCreateBinary();
-  xSemaphoreGive(sampleBufferSemaphore);
-  
-  
-  // initialise lookuptable
-  // centralOctaveLookUpTable.initializeTable();
-  // initialise communication
+  critical_section_mutex = xSemaphoreCreateMutex();
+  CAN_TX_Semaphore = xSemaphoreCreateCounting(3,3);
+
   initializeCAN();
+  xSemaphoreGive(sampleBufferSemaphore);
 
   # ifndef DISABLE_THREADS
 
-  initialize_table();
-  // Initialise SampleISR
-  TIM_TypeDef *Instance = TIM1;
-  HardwareTimer *sampleTimer = new HardwareTimer(Instance);
+  // Timer Setting
   sampleTimer->setOverflow(22000, HERTZ_FORMAT);
   sampleTimer->attachInterrupt(sampleISR);
   sampleTimer->resume();
+  Serial.print("Inity");
+  initialize_table();
 
-  // Initialise Scan key
-  Serial.print("in setup: ");
-  Serial.println(configFlag);
 
+  // Initialize run thread
   TaskHandle_t scanKeysHandle = NULL;
-  xTaskCreate(scanKeysTask, "scanKeys", 256, NULL, 6, &scanKeysHandle); 
-  
-  // Initialize threading displayUpdateTask
-  TaskHandle_t displayHandle = NULL;
-  xTaskCreate(displayUpdateTask, "display", 256, NULL, 1, &displayHandle);   
-  
-  // Initialize threading decodeTask
+  TaskHandle_t displayKeysHandle = NULL;
+  TaskHandle_t write_to_double = NULL;
+  TaskHandle_t transmitHandle = NULL;
   TaskHandle_t decodeHandle = NULL;
+  TaskHandle_t configHandle = NULL;
+  TaskHandle_t joystickHandle = NULL;
+
   xTaskCreate(decodeTask, "decode", 256, NULL, 4, &decodeHandle);   
 
-  // Initialize threading transmitTask
-  TaskHandle_t transmitHandle = NULL;
   xTaskCreate(CAN_TX_Task, "transmit", 256, NULL, 3, &transmitHandle); 
 
-  // Initialize threading writeToBuffer
-  TaskHandle_t writeToDoubleHandle = NULL; 
-  xTaskCreate( write_to_double_buffer, "write_to_buffer", 64, NULL, 5, &writeToDoubleHandle); 
+  xTaskCreate(scanKeysTask,"scanKeys", 64, NULL,5, &scanKeysHandle);  
 
-  TaskHandle_t configHandle = NULL;
-	xTaskCreate(configTask,	"config",	64, NULL,	2, &configHandle);	
+  xTaskCreate(displayUpdateTask,"displayKeys",256,NULL,1,&displayKeysHandle);
 
-  // Start RTOS scheduler
-  vTaskStartScheduler();
+  xTaskCreate(write_to_double_buffer, "write_to_buffer",256,NULL, 6, &write_to_double);  
   
+  xTaskCreate(configTask, "config",64,NULL,0 ,&configHandle);  
+
+  xTaskCreate(joystickTask, "joystick", 64, NULL, 2, & joystickHandle);
+
+  vTaskStartScheduler();
   #endif
 
-  
   #ifdef TEST_SCANKEYS
     // void *pvParameters;
     uint32_t startTime = micros();
+    Serial.print("Time");
     for (int iter = 0; iter < 32; iter++) {
       scanKeysTask(NULL);
     }
-    Serial.print("Time to run Scan keys task 32 times: ");
-    Serial.print((micros()-startTime)/32000);
+    Serial.print("Time to run Scan keys task 1 times: ");
+    Serial.print((micros()-startTime)/32000.0);    
     Serial.println(" ms");
-  
   #endif
-  
+
   #ifdef TEST_DISPLAY
+    #define MAIN_SPEAKER_ON
     uint32_t startTime = micros();
     for (int iter = 0; iter < 100; iter++) {
       displayUpdateTask(NULL);
     }
     Serial.print("Average time to run display task 1 time: ");
-    Serial.print((micros()-startTime)/100000);
+    Serial.print((micros()-startTime)/100000.0);
     Serial.println(" ms");
     while(1);
   #endif
 
   #ifdef TEST_DECODE
     Serial.println("Start");
-    uint8_t msg[8] = {'P',4,9,0,0,0,0,0};
+    uint8_t msg[8] = {'R',4,9,0,0,0,0,0};
     for (int iter = 0; iter < 384; iter++){
       xQueueSend(msgInQ, msg, NULL);
     }
@@ -152,8 +123,8 @@ void setup()
     for (int iter = 0; iter < 384; iter++) {
       decodeTask(NULL);
     }
-    Serial.print("Time to run 384 decode tasks: ");
-    Serial.print((micros()-startTime));
+    Serial.print("Time to run 1 decode tasks: ");
+    Serial.print((micros()-startTime) / 384.0);
     Serial.println("us");
     while(1);
   #endif
@@ -169,11 +140,69 @@ void setup()
       CAN_TX_Task(NULL);
     }
     Serial.print("Time to run 384 transmit tasks: ");
-    Serial.print((micros()-startTime));
+    Serial.print((micros()-startTime)/ 384.0);
     Serial.println("us");
     while(1);
   #endif
-} 
 
-void loop()
-{}
+  #ifdef TEST_CONFIG
+    uint32_t startTime = micros();
+    for (int iter = 0; iter < 10; iter++) {
+      configTask(NULL);
+    }
+    Serial.print("Average time to run config task 1 time: ");
+    Serial.print((micros()-startTime)/10000.0);
+    Serial.println(" ms");
+    while(1);
+  #endif
+
+  #ifdef TEST_JOYSTICK
+    uint32_t startTime = micros();
+    for (int iter = 0; iter < 100; iter++) {
+      joystickTask(NULL);
+    }
+    Serial.print("Average time to run joystick task 1 time: ");
+    Serial.print((micros()-startTime)/100000.0);
+    Serial.println(" ms");
+    while(1);
+  #endif
+
+  #ifdef TEST_SAMPLEISR
+    uint32_t startTime = micros();
+    for (int iter = 0; iter < 100; iter++) {
+      sampleISR();
+    }
+    Serial.print("Average time to run sample ISR interrupt 1 time: ");
+    Serial.print((micros()-startTime)/100.0);
+    Serial.println(" us");
+    while(1);
+  #endif
+
+  #ifdef TEST_BUFFER
+    #define SAWTooth_selected
+    uint32_t startTime = micros();
+    for (int iter = 0; iter < 100; iter++) {
+      write_to_double_buffer(NULL);
+      xSemaphoreGive(sampleBufferSemaphore);
+    }
+    Serial.print("Average time to run double buffer task 1 time: ");
+    Serial.print((micros()-startTime)/100.0);
+    Serial.println(" us");
+    while(1);
+  #endif
+}
+
+void loop() {
+  #ifdef TEST_OVERALL
+    char run_time_stats [1000];
+    vTaskGetRunTimeStats(run_time_stats);
+    Serial.print("Joy: ");
+    Serial.print(joystick_counter);
+    Serial.print("Write: ");
+    Serial.println(write_to_double_buffer_counter);
+    Serial.println(run_time_stats);
+  #endif
+}
+
+
+

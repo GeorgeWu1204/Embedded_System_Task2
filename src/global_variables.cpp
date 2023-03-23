@@ -1,6 +1,5 @@
 #include "global_variables.h"
 
-
 const uint32_t interval = 100; // Display update interval
 
 // Pin definitions
@@ -31,68 +30,88 @@ const int DRST_BIT = 4;
 const int HKOW_BIT = 5;
 const int HKOE_BIT = 6;
 
+
+// Test
+#ifdef TEST_OVERALL
+  uint8_t joystick_counter = 0;
+  uint8_t write_to_double_buffer_counter = 0;
+#endif
+
+
 // Constants for the global
-const int32_t stepSizes[12] = {
-    51076056,
-    54113197,
-    57330935,
-    60740009,
-    64351798,
-    68178356,
-    72232452,
-    76527617,
-    81078186,
-    85899345,
-    91007186,
-    96418755};
+volatile uint16_t global_keyArray_concated;
 
+//Key 
 const char * Key_set[13] = {"Not Pressed", "C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B"};
+const uint32_t stepSizes [12] = { 
+  51076056,
+  54113197,
+  57330935,
+  60740010,
+  64351798,
+  68178356,
+  72232452,
+  76527617,
+  81078186,
+  85899345,
+  91007186,
+  96418755
+ };
 
-volatile uint8_t octave = 0;
-
-volatile int8_t knob3Rotation = 0;
-volatile uint8_t keyArray[7] = {0};
-volatile uint8_t globalTX_Message[8]={0};
-volatile uint8_t globalRX_Message[8]={0};
-
+//Communication
 volatile QueueHandle_t msgInQ;
 volatile QueueHandle_t msgOutQ;
-
-SemaphoreHandle_t keyArrayMutex;
-SemaphoreHandle_t RX_MessageMutex;
 SemaphoreHandle_t CAN_TX_Semaphore;
-SemaphoreHandle_t sound_tableMutex;
 
+// Rotation Knob
+volatile int8_t knob3Rotation = 0;
+
+Knob knob1;
+volatile int8_t knob1Rotation = 0;
+volatile int8_t prev_knob1Rotation = 0;
+
+// Sound 
+bool sawTooth_selected = false;
+volatile uint8_t octave;
+SemaphoreHandle_t sound_tableMutex;
 SemaphoreHandle_t sampleBufferSemaphore;
 
 
-// const uint8_t SAMPLE_BUFFER_SIZE = 4;
 uint8_t sampleBuffer0[SAMPLE_BUFFER_SIZE];
 uint8_t sampleBuffer1[SAMPLE_BUFFER_SIZE];
 volatile bool writeBuffer1 = false;
 
-uint32_t local_timestep [12] = {
+float local_timestep [12] = {
     0, 0, 0, 0,
     0, 0, 0, 0,
     0, 0, 0, 0
 };
-volatile uint16_t global_keyArray_concated;
 
-std::map<uint8_t, std::vector<uint16_t> > sound_table; 
-
+Key sound_table [12];
 volatile bool outBits[8] = {false,false,false,true,true,true,true};
 
+// config
+uint8_t ownID;
 volatile uint8_t previous_west;
 volatile uint8_t previous_east;
-
-uint8_t ownID;
-uint8_t position = 0;
 
 volatile bool configFlag = true;
 volatile bool endConfigFlag = false;
 
 std::map<uint8_t, uint8_t> positionTable;
+SemaphoreHandle_t westeastArrayMutex;
+volatile uint8_t westeastArray[2];
+bool single_board;
+// set receiver
+bool main_speaker = false;
 
+// mute
+bool mute = false;
+
+//critical section
+SemaphoreHandle_t critical_section_mutex;
+
+// set pin
 void setPinDirections(){
   pinMode(RA0_PIN, OUTPUT);
   pinMode(RA1_PIN, OUTPUT);
@@ -110,5 +129,3 @@ void setPinDirections(){
   pinMode(JOYX_PIN, INPUT);
   pinMode(JOYY_PIN, INPUT);
 }
-
-

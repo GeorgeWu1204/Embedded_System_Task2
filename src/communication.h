@@ -2,7 +2,6 @@
 #include <ES_CAN.h>
 #include "global_variables.h"
 #include "global_functions.h"
-#include "reorganize.h"
 
 #ifndef COMMUNICATION_H
 #define COMMUNICATION_H

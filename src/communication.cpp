@@ -7,47 +7,47 @@ uint8_t TX_Message[8] = {0};
 
 void decodeTask(void *pvParameters){
     uint8_t localRX_Message[8];
-    //Serial.println("start decodeTask");
-    
     while (1){
-
         xQueueReceive(msgInQ, localRX_Message, portMAX_DELAY);
-        xSemaphoreTake(RX_MessageMutex, portMAX_DELAY);
-        std::copy(localRX_Message,localRX_Message+8,globalRX_Message);
-        xSemaphoreGive(RX_MessageMutex);
-
-        
         uint8_t first_message_bit = localRX_Message[0];
-        if (first_message_bit == 'S'){
-            Serial.println("received s");
+        uint8_t second_message_bit = localRX_Message[1];
+        uint8_t third_message_bit = localRX_Message[2];
+        
+        if (first_message_bit == 'P'){
+            modified_soundMap(second_message_bit, third_message_bit, true);
+        }
+        else if(first_message_bit == 'R'){
+            modified_soundMap(second_message_bit, third_message_bit, false);
+        }
+        else if (first_message_bit == 'S'){
             if (configFlag == false){
                 configFlag = true;
             }
         }
         else if (first_message_bit == 'L'){
-            Serial.println("received L");
-            positionTable[localRX_Message[1]] = localRX_Message[2];
+            positionTable[second_message_bit] = third_message_bit;
         }
         else if (first_message_bit == 'E'){
-            Serial.println("received E");
-            // configFlag = false;
             endConfigFlag = true;
-        }
 
-        else{
-            uint8_t octave_number = localRX_Message[1];
-            uint8_t note_number = localRX_Message[2];
-            if (first_message_bit == 'P'){
-                modified_soundMap(octave_number, note_number, true);
-                // xSemaphoreTake(sound_tableMutex, portMAX_DELAY);
-                // sound_table.find(octave_number)->second.push_back(note_number);
-                // xSemaphoreGive(sound_tableMutex);
+        }
+        else if (first_message_bit == 'M'){
+            main_speaker = false;
+        }
+        else if (first_message_bit == 'U'){
+            if (second_message_bit == 0){
+                mute = false;
             }
-            else if(first_message_bit == 'R'){
-                modified_soundMap(octave_number, note_number, false);
-                // xSemaphoreTake(sound_tableMutex, portMAX_DELAY);
-                // sound_table.find(octave_number)->second.erase(std::remove(sound_table.find(octave_number)->second.begin(), sound_table.find(octave_number)->second.end(), note_number), sound_table.find(octave_number)->second.end());
-                // xSemaphoreGive(sound_tableMutex);
+            else {
+                mute = true;
+            } 
+        }
+        else if (first_message_bit == 'O'){
+            if (second_message_bit == 1){
+                octave += third_message_bit;
+            }
+            else if (second_message_bit == 0){
+                octave -= third_message_bit;
             }
         }
         #ifdef TEST_DECODE
@@ -63,7 +63,6 @@ void CAN_TX_Task (void * pvParameters) {
 	    xQueueReceive(msgOutQ, msgOut, portMAX_DELAY);
 		xSemaphoreTake(CAN_TX_Semaphore, portMAX_DELAY);
 		CAN_TX(0x123, msgOut);
-        xSemaphoreGive(CAN_TX_Semaphore);
         #ifdef TEST_TRANSMIT
         break;
         #endif
@@ -71,30 +70,17 @@ void CAN_TX_Task (void * pvParameters) {
 }
 
 void sendMessage(uint8_t msg0, uint8_t msg1, uint8_t msg2){
+    xSemaphoreTake(critical_section_mutex, portMAX_DELAY);
     TX_Message[0] = msg0;
     TX_Message[1] = msg1;
     TX_Message[2] = msg2;
     xQueueSend( msgOutQ, TX_Message, portMAX_DELAY);
-    Serial.println("sent!");
-    std::copy(TX_Message, TX_Message + 8, globalTX_Message); 
+    xSemaphoreGive(critical_section_mutex);
+ 
 }
 
-// void sendMessage(int8_t index, bool press){
-//     if (press){
-//         // pressed
-//         TX_Message[0] = 'P';
-//         TX_Message[1] = __atomic_load_n(&octave,__ATOMIC_RELAXED);
-//         TX_Message[2] = index;
-//     }
-//     else{
-//         // released
-//         TX_Message[0] = 'R';
-//         TX_Message[1] = __atomic_load_n(&octave,__ATOMIC_RELAXED);
-//         TX_Message[2] = index;
-//     }
-//     xQueueSend( msgOutQ, TX_Message, portMAX_DELAY);
-//     std::copy(TX_Message, TX_Message + 8, globalTX_Message); 
-// }
+
+
 
 
 void CAN_RX_ISR(void) {
@@ -103,6 +89,7 @@ void CAN_RX_ISR(void) {
 	CAN_RX(ID, RX_Message_ISR);
 	xQueueSendFromISR(msgInQ, RX_Message_ISR, NULL);
 }
+
 
 void CAN_TX_ISR (void) {
 	xSemaphoreGiveFromISR(CAN_TX_Semaphore, NULL);
@@ -124,8 +111,10 @@ void initializeCAN(){
     
     CAN_Init(false);
     setCANFilter(0x123,0x7ff);
+    #ifndef DISABLE_THREADS
     CAN_RegisterRX_ISR(CAN_RX_ISR);
     CAN_RegisterTX_ISR(CAN_TX_ISR);
+    #endif
     CAN_Start();
 }
 
