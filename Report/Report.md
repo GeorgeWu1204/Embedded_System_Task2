@@ -78,11 +78,11 @@ It can be observed that the `writeToDoubleBuffer()` function utilizes the most C
 
 |Variable | Shared data structure | Access Tasks / Interrupts | Synchronisation Method |
 |---------|-----------------------| -------------- | --------------|
-|`sound_table`|   Array[7] of struct(octave  + keyindex) | `display()` & `scanKey()` & `CAN_TX_Task()` | Semaphore by taking the mutex and copy to the local array|
-|`octave` | uint8_t | `scanKey()` & `decode()` & `configuration()` |Atomic access |
-| `msgInQ` | Queue length 36 and 8 bytes in total | `CAN_RX_ISR()` & `decode()` | When calling `xQueueReceive()`, the CPU will be yielded to other tasks and the function will block until a message becomes available in the queue. |
-| `msgOutQ` | Queue length 36 and 8 bytes in total | `CAN_TX_Task()` & `scanKey()` & `configuration()` | It is guarded by a counting semaphore initialized with the value three for the transmit thread to take up to three times. |
-| `sampleBuffer1` & `sampleBuffer0` | Both array [800] of uint_8 | `writeToDoubleBuffer()` & `sampleISR()` |Secured by Semaphore and use writeBuffer1 to decide which buffer to write and read |
+|`sound_table`|   Array[7] of struct(octave  + keyindex) | `display()`, `scanKey()`, `CAN_TX_Task()` | Semaphore by taking the mutex and copy to the local array|
+|`octave` | uint8_t | `scanKey()`, `decode()`, `configuration()` |Atomic access |
+| `msgInQ` | Queue length 36 and 8 bytes in total | `CAN_RX_ISR()`, `decode()` | When calling `xQueueReceive()`, the CPU will be yielded to other tasks and the function will block until a message becomes available in the queue. |
+| `msgOutQ` | Queue length 36 and 8 bytes in total | `CAN_TX_Task()`, `scanKey()`, `configuration()` | It is guarded by a counting semaphore initialized with the value three for the transmit thread to take up to three times. |
+| `sampleBuffer1` & `sampleBuffer0` | Both array [800] of uint_8 | `writeToDoubleBuffer()`, `sampleISR()` |Secured by Semaphore and use writeBuffer1 to decide which buffer to write and read |
 |other global arrays | | | The rest of the global arrays are all secured by the semaphore.|
 |other global variables | | | The rest of all global variables atomic access|
 <!-- |globalRX_Message & globalTX_Message | uint8_t array[8] | scanKey &  -->
@@ -107,7 +107,7 @@ It can be observed that the `writeToDoubleBuffer()` function utilizes the most C
 
 ![Task Dependency](Task_dependency.png "Task Dependency")
 
-| Semaphore | Type | Access Tasks and Interrupt |
+| Semaphore | Type | Access Tasks / Interrupts |
 |-----------|------|----------------------------|
 |sound_tableMutex| Mutex| `display()`, `write_to_buffer()`, `scanKey()` `communication()`|
 |westeastArrayMutex| Mutex | `scanKey()`, `configuration()` |
